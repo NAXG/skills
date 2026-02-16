@@ -1,5 +1,7 @@
 # code-audit
 
+[中文文档](README_CN.md)
+
 **Version**: 5.2.0
 
 A structured, multi-phase security audit system that finds real vulnerabilities through source-to-sink data flow tracing — not just pattern matching. Covers OWASP Top 10, authentication/authorization chains, injection flaws, deserialization, SSRF, and more.
@@ -37,10 +39,8 @@ Dedicated analysis modules for: SQL Injection, Command Injection, XSS, Authentic
 ## Installation
 
 ```bash
-claude install gh:anthropics/claude-code-skill-code-audit
+claude skill add gh:NAXG/skills --skill code-audit
 ```
-
-Or manually clone this repository into your Claude Code skills directory.
 
 ## Requirements
 

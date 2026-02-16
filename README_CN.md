@@ -37,10 +37,8 @@
 ## 安装
 
 ```bash
-claude install gh:anthropics/claude-code-skill-code-audit
+claude skill add gh:NAXG/skills --skill code-audit
 ```
-
-或手动将本仓库克隆到 Claude Code 的 skills 目录中。
 
 ## 系统要求
 
