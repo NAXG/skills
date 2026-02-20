@@ -33,7 +33,7 @@ Claude: [MODE] deep
 ## Requirements
 
 - **Python 3** (required)
-- **semgrep** (recommended — the audit proceeds without it)
+- **semgrep** (required for standard/deep modes — quick mode can proceed without it)
 
 ## What It Covers
 

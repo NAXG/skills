@@ -2,38 +2,26 @@
 
 > When Agent output is truncated due to token limits, follow this protocol to recover.
 
+## Proactive Truncation Prevention
+
+Agents should estimate output size **before** producing final output:
+
+1. **Estimation formula**: `estimated_tokens = findings_count × 300 + 200 (header overhead)`
+2. **Threshold**: If `estimated_tokens > 40%` of remaining context budget, apply compression:
+   - Reduce evidence to 1 line per finding (most critical line only)
+   - Merge similar findings (same CWE + same file → single entry with line range)
+   - Truncate flow field for Low/Medium findings to `Source → Sink` (remove intermediates)
+3. **Timing**: This estimation happens before writing `===AGENT_RESULT===`, not after
+4. **Agent checkpoint**: Every 10 turns, Agents output a progress checkpoint to track accumulation: `[CHECKPOINT] turn:{N} findings:{count} files_read:{count} remaining_dims:{list}`
+
 ## Truncation Detection
 
 Output is considered truncated when the `===AGENT_RESULT_END===` termination marker is missing.
 
 ## Recovery Process
 
-### Case 1: Mild Truncation (agent_id line exists)
-
-1. Determine the number of completed findings via the last complete `[FNNN]`
-2. Issue a resume request:
-
-**Resume Request Template:**
-```
-RESUME_REQUEST
-Agent-ID: [Original Agent ID]
-Last-Complete-Finding: FNNN
-Remaining-Dimensions: [Incomplete dimensions]
-Resume-Action: continue_from_finding_N+1
-```
-
-3. Resume Agent continues output from N+1
-
-### Case 2: Severe Truncation (even the agent_id line is missing)
-
-1. Do not issue a resume
-2. Downgrade the entire Agent dimension ⚠️
-3. Fill gaps in the next round or via an emergency Agent
-
-### Case 3: Two Consecutive Truncations
-
-- Same Agent truncated twice in a row → limit output (reduce Evidence detail, max 2 lines of code per finding)
-- Adjust strategy: split dimensions and distribute across multiple Agents
+- **Rule 1 (Mild, agent_id exists)**: Preserve completed findings (up to last complete `[FNNN]`). Mark the Agent's dimensions with ⚠️. Remaining dimensions are supplemented in the next round.
+- **Rule 2 (Severe, agent_id missing)**: Discard all output. Mark the Agent's dimensions with ⚠️. Retry with reduced scope (halve dimensions + halve max_turns, max 5 findings per retry). If retry also truncates, do not retry again — fill gaps in next round or via emergency Agent.
 
 ## Handling Truncated Findings in Phase 4
 

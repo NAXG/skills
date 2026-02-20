@@ -51,6 +51,27 @@ entrypoint_matrix:
     auth_guard: {present|absent|unknown}
 ```
 
+### Endpoint-Permission Matrix (standard/deep only)
+
+For standard/deep modes, Phase 0 must produce an endpoint-permission matrix as a prerequisite for D3/D9 assessment:
+
+```text
+endpoint_permission_matrix:
+  - endpoint: {path}
+    method: {GET|POST|PUT|DELETE|...}
+    handler: {file:line}
+    auth_required: {yes|no|unknown}
+    role_required: {admin|user|public|unknown}
+    notes: {any relevant security annotation}
+```
+
+Minimum requirements:
+- **standard mode**: Focus on auth-critical and data-mutating endpoints (POST/PUT/DELETE + sensitive resources); minimum 50% endpoint coverage
+- **deep mode**: List **all** discovered HTTP endpoints (from entrypoint_inventory) for full coverage
+- `auth_required` must be determined by checking middleware/interceptor/decorator chains, not guessed
+- If auth status cannot be determined from static analysis, mark as `unknown` (not `no`)
+- This matrix is the primary input for D3 (Authorization) and D9 (Business Logic) assessments
+
 ### Substance Constraints (Prevent Step-Skipping)
 
 `entrypoint_inventory=completed` requires:
@@ -58,7 +79,9 @@ entrypoint_matrix:
 - Cannot just declare "completed" with no actual content
 - Main thread validation: check whether output contains handlers in `file:line` format
 
-## 0.3 Content-Type Sensitive Entry Points
+## 0.3 Content-Type Sensitive Entry Points (Optional)
+
+> This inventory is optional for all modes. When completed, it enriches the attack surface map but is not required for any gate tier.
 
 Perform dedicated enumeration for the following types (`Grep` + `Read`):
 
@@ -92,7 +115,10 @@ Minimum output:
 dependency_inventory:
   total_dependencies: {n}
   high_risk_components: [{name:version:reason}]
+  opaque_dependencies: [{name:version:security_role}]
 ```
+
+`opaque_dependencies`: Dependencies that contain security-critical logic but whose source code is not available for audit (e.g., proprietary auth libraries, closed-source WAF modules). These must be declared in the report's Audit Limitations section as "security logic not auditable."
 
 ### Substance Constraints (Prevent Step-Skipping)
 
@@ -107,15 +133,15 @@ dependency_inventory:
 
 ```text
 quick_passed: entrypoint_inventory=completed + dependency_inventory=completed
-all_passed: all four items completed (used by standard/deep)
+all_passed: modules_inventory=completed + entrypoint_inventory=completed + dependency_inventory=completed
 ```
 
 - `quick_passed`: used only in quick mode, proceed to Phase 2 once met
-- `all_passed`: used in standard/deep modes, all four items must be met before proceeding to Phase 2
+- `all_passed`: used in standard/deep modes, three core items (modules + entrypoint + dependency) must be met before proceeding to Phase 2
 
 ### Completion Criteria
 
-All four items met → `phase0_checklist: all_passed`
+Three core items met (modules + entrypoint + dependency) → `phase0_checklist: all_passed`
 Only entrypoint + dependency met → `phase0_checklist: quick_passed`
 Otherwise → `phase0_checklist: partial`
 
@@ -125,7 +151,11 @@ If partial:
 
 ### Phase 0 Retry Limit
 
-Phase 0 allows a maximum of 2 retries (3 total attempts).
+Phase 0 allows a maximum of 2 retries (3 total attempts). Each retry **must** include:
+- **Failure reason**: What specifically failed in the previous attempt
+- **Improvement strategy**: Concrete changes (e.g., different Grep patterns, broader file scope, alternative glob patterns)
+- **Targeted items**: Which specific inventory items will be completed
+- Blind re-execution without documented improvement is prohibited
 
 If still partial:
 - Record the gap reason

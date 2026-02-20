@@ -16,13 +16,11 @@ Phase 4c (Cross-Validation) ─────┘
 
 At the start of Phase 4, complete all hit verification from `semgrep-findings.json`. Launched simultaneously with Phase 4c.
 
-Skipped when `semgrep_status=skipped`.
+> Semgrep is mandatory in standard/deep modes. `semgrep_status=skipped` is not permitted (blocked at Phase 2 entry).
 
 **Phase 4a Batched Routing**:
 ```text
-if semgrep_status == skipped:
-    skip
-elif semgrep_status == partial:
+if semgrep_status == partial:
     main thread verification (only process parsed findings, mark unparsed as needs_manual)
 elif semgrep_findings_total <= 15:
     main thread verification (current behavior, unchanged)
@@ -57,6 +55,13 @@ semgrep_verification:
 
 ### Phase 4c: Multi-Agent Cross-Validation
 
+**Phase 4 Fast Track** (small finding sets — must be evaluated before entering full 4c routing):
+```text
+total_findings ≤ 5 AND no Critical → main thread validates directly, no Validation Agent launched
+total_findings ≤ 5 AND has Critical → launch 1 Validation Agent for Critical findings only
+otherwise → full 4c routing below
+```
+
 **Input**: Post-Phase 2.5 merged findings list + pre-validation status. Launched simultaneously with Phase 4a.
 
 **Phase 4c Routing Logic**:
@@ -82,7 +87,7 @@ Determines validation strategy based on the severity and pre-validation status o
 All four steps pass: vulnerability confirmed. Any step fails: downgrade or exclude.
 
 **Main Thread Spot Check Rules** (for Critical/High findings with `validation=pass`):
-- Randomly sample >= 30% of pass findings (minimum 1)
+- Randomly sample >= 30% of pass findings (minimum: `min(ceil(30%), 3)` — at least 3 findings, or all if fewer than 3 exist)
 - Only verify data flow key nodes (Step 1), no full four-step process
 - If spot check reveals pre-validation conclusion errors → all pass findings from that Phase 2 Agent are upgraded to needs_validation and reassigned to a Validation Agent for re-verification
 
@@ -162,13 +167,22 @@ score = Reachability + Impact Scope + Exploitation Complexity + Defense Friction
   - No effective defense: `+0`
   - Defense exists but reliably bypassable: `+0`
   - Defense exists and bypass requires additional stringent conditions: `-1`
+    - **Quantified "stringent conditions"**: ≥3 independent prerequisites = `-1`; requires specific runtime environment (e.g., debug mode, specific OS) = `-1`; requires multi-step requests within a time window = `-1` (these stack, max `-3`)
+- Environment Factor:
+  - Exploitable with default configuration: `+1`
+  - Requires non-default or custom configuration to exploit: `-1`
+- Chain Bonus:
+  - Finding is part of a verified attack chain: `+1`
+  - Finding is a root node (entry point) of an attack chain: `+2`
 
 Mapping Rules:
 
-- `score >= 5` → `Critical`
-- `score 3-4` → `High`
-- `score 1-2` → `Medium`
+- `score >= 6` → `Critical`
+- `score 4-5` → `High`
+- `score 1-3` → `Medium`
 - `score <= 0` → `Low/Info`
+
+> Score range expanded to accommodate Environment Factor and Chain Bonus. The thresholds are adjusted upward by 1 to maintain calibration consistency.
 
 Conflict Resolution:
 

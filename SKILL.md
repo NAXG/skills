@@ -11,7 +11,7 @@ allowed-tools: Read, Grep, Glob, Bash, Task, Write
 >
 > **Version**: 5.2.0 | **Updated**: 2026-02-17
 >
-> **System Requirements**: Python 3 (required), semgrep (recommended for baseline scanning, but audit can proceed without it)
+> **System Requirements**: Python 3 (required), semgrep (required for standard/deep modes; quick mode can proceed without it)
 >
 > **Mindset: Attacker's perspective.** During the audit, assume every line of code is exploitable until proven otherwise. Don't "defend the developer" — instead, "find paths for the attacker."
 

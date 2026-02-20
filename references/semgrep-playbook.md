@@ -1,5 +1,7 @@
 # Semgrep Playbook
 
+> **DEPRECATED**: This file's content has been integrated into [execution-controller.md](execution-controller.md) §Semgrep Execution Timing. This file is retained for reference only and is no longer loaded during execution.
+
 > This file must be loaded during Phase 2 Step 0 (Semgrep baseline scan).
 > Validation is performed uniformly in Phase 4.
 
@@ -11,17 +13,14 @@
 
 ## Fault Tolerance Rules
 
-When Semgrep is unavailable (command not found, execution failure, timeout), follow this process:
+Semgrep is **mandatory** in standard/deep modes. When issues occur, follow this process:
 
 1. Check if semgrep is available: `which semgrep` or `semgrep --version`
-2. If unavailable: set `semgrep_status=skipped`, do not block Agent startup
-3. If execution times out (>5 minutes): set `semgrep_status=skipped`, record timeout reason
-4. If execution errors but has partial output: attempt to parse existing output, set `semgrep_status=partial`
+2. If unavailable: trigger [HALT] — prompt user to install semgrep before continuing
+3. If execution times out (>5 minutes): retry once. If still failing, trigger [HALT]
+4. If execution errors but has partial output: attempt to parse existing output, set `semgrep_status=partial` (acceptable, audit continues)
 
-Impact when `semgrep_status=skipped`:
-- Agent scanning proceeds normally
-- Phase 4a (Semgrep verification) is skipped
-- Report annotates "Semgrep baseline scan skipped" with reason
+Quick mode does not execute Semgrep (quick skips Phase 3/4, Semgrep results have no consumer).
 - Does not affect coverage assessment
 
 ## Baseline Command

@@ -31,7 +31,7 @@ Claude: [MODE] deep
 ## 系统要求
 
 - **Python 3**（必需）
-- **semgrep**（推荐——没有它审计也能正常进行）
+- **semgrep**（standard/deep 模式必需——quick 模式可不安装）
 
 ## 覆盖范围
 

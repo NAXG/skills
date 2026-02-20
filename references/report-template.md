@@ -20,9 +20,9 @@ Report content branches by audit mode:
 | Validation Agent Verification Evidence | Skip | Required | Required |
 | Source Summary | Skip | Required | Required |
 | Attack Chain Analysis | Skip | Required | Required |
-| Attack Path Scoring | Skip | Required | Required |
-| Attack Cost Analysis | Skip | Required | Required |
-| Attack Timeline Simulation | Skip | Optional | Required |
+| Attack Path Scoring | Skip | Optional | Required |
+| Attack Cost Analysis | Skip | Optional | Required |
+| Attack Timeline Simulation | Skip | Optional | Recommended (only for Critical findings) |
 
 ---
 
@@ -133,6 +133,8 @@ Report content branches by audit mode:
 **Constraints**:
 - If any Phase's [PHASE] marker is missing, the report must be marked as "**INCOMPLETE**"
 - Missing Phase 3 or Phase 4 [PHASE] marker = **Report Invalid**
+- Phase 3 status = partial → Report header must include: `⚠️ DEEP DIVE INCOMPLETE: Critical findings have confidence capped at medium`
+- Report generated without Phase 3/4 execution → header must include: `⚠️ QUICK_EQUIVALENT: This report was generated without Deep Dive and Validation phases`
 
 ### Phase Completion Ledger (Required)
 | phase | status(completed/partial) | evidence |
@@ -167,7 +169,7 @@ Report content branches by audit mode:
 ### Semgrep Verification Evidence (If Enabled)
 | Item | Value |
 |------|-------|
-| semgrep_status | {completed/partial/skipped/failed/timed_out} |
+| semgrep_status | {completed/partial} |
 | semgrep_findings_total | {n} |
 | confirmed | {n} |
 | rejected | {n} |
@@ -200,7 +202,6 @@ Constraints:
 - If any Agent was converted to `timeout`, the impact scope must be explained in "Audit Limitations"
 - When `semgrep_status=completed`, `unresolved_findings_count` must be `0`
 - When `semgrep_status=completed`, `confirmed + rejected + needs_manual = semgrep_findings_total`
-- When `semgrep_status=skipped`, explain the reason in Audit Limitations
 - When `semgrep_status=partial`, explain the partial completion reason and number of unresolved findings in Audit Limitations
 - `Critical/High` with `PoC Status=not_reproducible` must include "Non-Reproducibility Reason" and must not be marked as "verified"
 - Validation Agent Verification Evidence section: must include per-Agent validation statistics when `validation_agents_launched > 0`
@@ -269,4 +270,27 @@ Constraints:
 3. `{t2}` Gains initial capability: {initial_access}
 4. `{t3}` Lateral/vertical movement: {movement}
 5. `{t4}` Achieves final impact: {final_impact_detail}
+
+---
+
+## Report Completeness Checklist
+
+The following items are **mandatory** — absence of any item invalidates the report:
+
+- [ ] Executive Summary with all required fields
+- [ ] Finding Statistics table
+- [ ] Coverage Matrix with D1-D10 status
+- [ ] Vulnerability Details for every finding (with Data Flow + Evidence + PoC)
+- [ ] Audit Limitations section
+- [ ] Phase Completion Ledger (standard/deep)
+- [ ] Phase Execution Evidence showing all [PHASE] markers (standard/deep)
+- [ ] Validation Agent Verification Evidence (standard/deep, when validation agents launched)
+
+The following items are **optional/extended** — enhance report quality but do not invalidate if absent:
+
+- [ ] Attack Timeline Simulation
+- [ ] Attack Path Scoring (required for deep mode, optional for standard)
+- [ ] Attack Cost Analysis (required for deep mode, optional for standard)
+- [ ] Source Summary cross-source breakdown
+- [ ] Semgrep Verification Evidence (required for standard/deep)
 ````

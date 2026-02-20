@@ -18,9 +18,11 @@ After Phase 2 completion, check coverage status for each dimension against this 
 
 ### Determination Conditions
 
-Marking a dimension as N/A requires both:
+Marking a dimension as N/A requires **all** of:
 1. Phase 0 reconnaissance did not detect key Sink categories for that dimension
-2. Agent Grep searches returned zero hits (at least 3 related pattern searches with no results)
+2. Agent Grep searches returned zero hits (at least 3 **distinct** related pattern searches with no results)
+3. The Grep patterns used must cover at least 2 different Sink sub-categories for that dimension (e.g., for D6/SSRF: both HTTP client calls AND webhook/callback patterns)
+4. N/A determination must be documented with the specific Grep patterns tried and their results
 
 ### Constraints
 
@@ -256,6 +258,12 @@ Coverage is assessed by audit strategy tracks to prevent "searched = covered."
 Endpoint Audit Rate (EPR) = verified permission endpoint count / total endpoints in endpoint-permission matrix
 ```
 
+**Data source**: The endpoint-permission matrix is produced in Phase 0 (see phase0-attack-surface.md §Endpoint-Permission Matrix). Agents covering D3/D9 must reference this matrix and report:
+```text
+epr: verified={n} total={n} rate={n%}
+crud_types: {n} resource types with CRUD consistency verified
+```
+
 - `✅` minimum thresholds:
   - `standard`: `EPR >= 30%` and at least 3 resource types with CRUD permission consistency comparison completed
   - `deep`: `EPR >= 50%` and at least 3 resource types with CRUD permission consistency comparison completed
@@ -275,6 +283,12 @@ Fan-out rate = files with traced data flows / files with Grep hits
 ```
 
 - Grep hits >= 10 and fan-out rate < 30% → downgrade that dimension to `⚠️`
+
+**Data collection mechanism**: Agents must report the following in their `===AGENT_RESULT===` output for each Sink-driven dimension (D1/D4/D5/D6):
+```text
+fan_out: D1={traced_files}/{grep_hit_files} D4={traced_files}/{grep_hit_files} ...
+```
+The main thread calculates fan-out rates during Phase 2.5 merge. Missing fan-out data → dimension cannot be marked `✅` (capped at `⚠️`).
 
 ### Mode Thresholds
 

@@ -28,7 +28,6 @@ Special rules:
 - `standard`
   - All `quick` documents
   - `coverage-matrix.md`
-  - `references/semgrep-playbook.md`
 - `deep`
   - All `standard` documents
   - `references/agent-output-recovery.md`
@@ -54,7 +53,7 @@ Phase 0 is an embedded sub-phase of Phase 1 (does not produce an independent [PH
 | Gate | Condition | Applicable Mode |
 |------|-----------|-----------------|
 | `quick_passed` | `entrypoint_inventory=completed` + `dependency_inventory=completed` | quick |
-| `all_passed` | All four items completed | standard / deep |
+| `all_passed` | Three core items completed (modules + entrypoint + dependency) | standard / deep |
 
 ### Substantive Constraints (Prevent Step-Skipping)
 
@@ -71,7 +70,7 @@ Tech stack: {language, framework, version}
 Project type: {CMS|Finance|SaaS|Data Platform|Identity|IoT|General Web|Library}
 Entry points: {Controller/Router/Handler count}
 Key modules: {list}
-phase0_inventory: {modules_inventory, entrypoint_inventory, content_type_inventory, dependency_inventory}
+phase0_inventory: {modules_inventory, entrypoint_inventory, dependency_inventory, content_type_inventory(optional)}
 phase0_checklist: {quick_passed|all_passed|partial}
 ```
 
@@ -110,6 +109,7 @@ After [PLAN_ACK], the main thread internally validates the following conditions;
 | 2 | Documents loaded | [LOADED] includes mode-required documents | Supplemental loading |
 | 3 | Reconnaissance complete | phase0_checklist meets mode requirements (quick=quick_passed, standard/deep=all_passed or partial_accepted) | Return to Phase 0 |
 | 4 | Plan confirmed | [PLAN_ACK] == confirmed or auto_confirmed | Wait for user confirmation |
+| 5 | Semgrep available | standard/deep: `semgrep --version` succeeds | [HALT] — prompt user to install semgrep |
 
 ### Quick Mode Special Rules
 
@@ -124,16 +124,58 @@ After [PLAN_ACK], the main thread internally validates the following conditions;
     ↓
 [quick mode skips Semgrep, launches Agents directly]
     ↓
-Semgrep baseline scan (semgrep scan --config auto --json)  [standard/deep only]
+Launch Phase 2 Agents + Semgrep baseline scan (parallel)  [standard/deep only]
     ↓
-Parse results (parse_semgrep_baseline.py)
+Agents and Semgrep execute concurrently
     ↓
-Launch Phase 2 Agents
+All Agents completed + Semgrep completed → Phase 2.5
 ```
 
-> The Semgrep baseline scan runs after [PLAN_ACK] and before Agent launch (standard/deep modes only). Quick mode skips the Semgrep scan and launches Agents directly. For detailed execution parameters, see [Semgrep Playbook](semgrep-playbook.md).
+> In standard/deep modes, the Semgrep baseline scan launches **in parallel** with Phase 2 business Agents. Semgrep is **mandatory** in standard/deep modes and must complete successfully (completed or partial). Quick mode skips the Semgrep scan and launches Agents directly.
 
-**Semgrep fault tolerance**: When semgrep is unavailable (command not found, execution failure, timeout), set `semgrep_status=skipped` without blocking Agent launch. Agent scanning proceeds normally; the report notes "Semgrep baseline scan skipped."
+**Semgrep Baseline Command**:
+
+```bash
+semgrep scan --config auto --json --output semgrep-baseline.json
+```
+
+**Parse Command** (raw output is too large, script parsing required):
+
+```bash
+python3 scripts/parse_semgrep_baseline.py semgrep-baseline.json \
+  --min-severity WARNING \
+  --exclude-third-party \
+  --format json \
+  --output semgrep-findings.json
+```
+
+Script location: `parse_semgrep_baseline.py` is in the `scripts/` directory of this skill.
+
+**Key parse parameters**:
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--min-severity {INFO\|WARNING\|ERROR}` | `INFO` | Minimum severity filter |
+| `--exclude-third-party` | `false` | Exclude vendor/third-party directories and minified files |
+| `--format {text\|json}` | `text` | Output format. `json` for Phase 4a consumption |
+| `--output <path>` | `-` (stdout) | Output file path |
+| `--include-path-regex <regex>` | empty | Path whitelist filter (repeatable) |
+| `--exclude-path-regex <regex>` | empty | Path blacklist filter (repeatable) |
+
+**Semgrep availability check** (standard/deep, mandatory):
+
+1. Check availability: `which semgrep` or `semgrep --version`
+2. If unavailable: trigger [HALT] — prompt user to install semgrep before continuing. Do not proceed to Phase 2
+3. If execution errors but has partial output: attempt to parse existing output, set `semgrep_status=partial` (acceptable, audit continues)
+4. If execution fails with no output: retry once. If still failing, trigger [HALT] — prompt user to fix semgrep installation
+
+**Accepted `semgrep_status` values by mode**:
+
+| Mode | `completed` | `partial` | `skipped` |
+|------|:-----------:|:---------:|:---------:|
+| quick | N/A (not executed) | N/A | N/A |
+| standard | ✅ | ✅ | ❌ triggers [HALT] |
+| deep | ✅ | ✅ | ❌ triggers [HALT] |
 
 ## Step 5: Execution
 
@@ -171,9 +213,8 @@ Quick mode examples:
 
 ### Phase 2: Hunt (Agent Scanning)
 
-- First execute the Semgrep baseline scan (standard/deep) or skip it (quick)
-- Then launch business Agents (D1-D10 dimension scanning)
-- All Agents must complete or be marked as timed out before proceeding to Phase 2.5 (standard/deep) or Phase 5 (quick)
+- Launch business Agents (D1-D10 dimension scanning) and Semgrep baseline scan **in parallel** (standard/deep), or Agents only (quick)
+- All Agents must complete or be marked as timed out, **and** Semgrep must complete (completed/partial), before proceeding to Phase 2.5 (standard/deep) or Phase 5 (quick)
 - `quick`: 1 round, coverage-first
 - `standard`: 1-2 rounds, balance between coverage and depth
 - `deep`: 2-3 rounds, strictly follow the Deep mode state machine (see section at end)
@@ -192,20 +233,54 @@ After all Agents complete and before coverage assessment, perform output merging
    - needs_validation_count: number of findings with validation=partial or skip
    - These statistics serve as input for Phase 4c routing
 
+**Mandatory output marker**:
+
+```text
+===MERGE_RESULT===
+merged_findings_count: {n}
+dedup_removed_count: {n}
+pre_validated_count: {n}
+needs_validation_count: {n}
+coverage_summary: D1={status},...,D10={status}
+hotspots_count: {n}
+===MERGE_RESULT_END===
+```
+
+**Non-conforming output handling**: When Agent output lacks the `[FNNN]` structured format, it is treated as truncated output and handled via the recovery flow. No free-form parsing is attempted.
+
+**Same Root Cause operational definition**:
+- **Primary criterion**: Same file + line range (±5 lines) = same root cause → merge, retain highest severity
+- Same Source parameter affects ≥2 different Sinks = same root cause → merge, retain highest severity
+
 Merged results serve as input for Phase 3/4.
 
 ### Phase 3: Deep Dive (standard/deep)
 
 Phase 3 focuses on in-depth analysis of discovered findings.
 
-**Substantive constraints (prevent step-skipping)**:
-- Must read ≥3 new files (not in Phase 2's FILES_READ)
-- Findings produced must include ≥1 deeper data flow than Phase 2 (call chain depth > Phase 2 average depth)
-- If not met, Phase 3 is marked partial, affecting can_report
+**Adaptive depth by finding count**:
+- **Critical/High ≤ 2**: Simplified Deep Dive — perform data flow completion only, skip attack chain synthesis
+- **Critical/High ≥ 3**: Full Deep Dive — complete all sub-steps including attack chain synthesis
 
-**Cross-Agent attack chain synthesis** (mandatory sub-step):
+**Substantive constraints (prevent step-skipping)**:
+- **Hotspot-driven targeting**: Must cover all HOTSPOTS flagged by Phase 2/2.5. If no hotspots exist, must trace the complete cross-file data flow for every Critical/High finding in D1-D3
+- **Depth metric**: depth = number of method boundaries crossed in a call chain. Phase 3 must produce at least 1 flow with depth > the deepest flow in Phase 2 for the same dimension
+- **Evidence depth requirement**: Phase 3 must produce more complete data flow evidence for each Critical/High finding than Phase 2 provided (e.g., deeper call chain, additional intermediate transforms, cross-file flow completion)
+- If not met, Phase 3 is marked partial → report must include a "**Deep Dive Incomplete**" watermark, and all Critical findings have confidence capped at `medium`
+
+**Cross-Agent attack chain synthesis** (mandatory when Critical/High ≥ 3; skipped when Critical/High ≤ 2):
 - Check whether Critical/High findings from different Agents can be combined
-- Combination condition: one finding's output can serve as another's input (e.g., information disclosure → authentication bypass → SQL injection)
+- **Combination pattern library (extensible)**:
+  1. Auth bypass (D2) + any other vuln → chain (auth bypass amplifies all downstream impact)
+  2. Information disclosure (D7/D8) + Auth bypass (D2) → chain (leaked credentials enable auth bypass)
+  3. SSRF (D6) + internal service vuln → chain (SSRF as pivot to internal attack surface)
+  4. File upload (D5) + path traversal (D5) → chain (upload + traversal = arbitrary file write)
+  5. Injection (D1) + privilege escalation (D3) → chain (injection in low-priv context + privesc = full compromise)
+  6. Business logic bypass (D9) + payment/transaction → chain (business logic flaw enables financial fraud)
+  7. Stored XSS/SQLi (D1) + admin trigger → chain (second-order attack via stored payload)
+  8. Supply chain compromise (D10) + code execution → chain (compromised dependency enables persistent backdoor)
+  9. LLM prompt injection + tool invocation → chain (prompt injection leverages tool access for data exfiltration)
+- Each chain must document: **pre-conditions**, **step sequence**, and **impact amplification factor** (combined severity vs. individual severities)
 - Combinable findings are recorded as attack chains and presented separately in the report
 
 Phase transition gate:
@@ -214,7 +289,16 @@ Phase transition gate:
 
 ### Phase 4: Validation (standard/deep)
 
+**Phase 4 Fast Track** (small finding sets):
+```text
+total_findings ≤ 5 AND no Critical → main thread validates directly, no Validation Agent launched
+total_findings ≤ 5 AND has Critical → launch 1 Validation Agent for Critical findings only
+otherwise → full 4a + 4c parallel → 4b pipeline
+```
+
 Phase 4 is split into 3 sub-steps, where **4a and 4c can run in parallel, and 4b serves as the final merge step**:
+
+**Timeout handling**: When a Phase 4 sub-step times out, fall back to main thread validation for its remaining work. Timeout events are recorded in the Phase Completion Ledger.
 
 ```text
 Phase 4a (Semgrep validation) ─┐
@@ -225,13 +309,12 @@ Phase 4c (cross-validation) ───┘
 **Phase 4a: Semgrep Validation**
 - When `semgrep_status=completed`: archive all `semgrep-findings.json` entries (confirmed/rejected/needs_manual)
 - When `semgrep_status=partial`: validate only parsed findings; unparsed ones marked `needs_manual`; report notes "Semgrep partially completed"
-- When `semgrep_status=skipped`: skip this step
+
+> `semgrep_status=skipped` is not permitted in standard/deep modes (blocked at Phase 2 entry).
 
 **Phase 4a Agent scheduling** (supports parallelism when Semgrep finding volume is high):
 ```text
-if semgrep_status == skipped:
-    skip
-elif semgrep_status == partial:
+if semgrep_status == partial:
     main thread validation (process only parsed findings)
 elif semgrep_findings_total <= 15:
     main thread validation (current behavior, unchanged)
@@ -269,7 +352,7 @@ if needs_batch_validation > 10:
   - E.g., if Phase 2 has agent-r1-01, agent-r1-02, agent-r1-03
   - Validation Agent A validates findings from agent-r1-02 and agent-r1-03
   - Validation Agent B validates findings from agent-r1-01
-- If only 1 Phase 2 Agent: the Validation Agent still performs independent validation (fresh perspective)
+- If only 1 Phase 2 Agent: the Validation Agent must independently re-read all critical code paths (cannot rely on Phase 2 Agent's evidence), and must execute the full 4-step validation for every Critical/High finding
 
 **Grouping strategy** (reduce redundant code reads):
 - Findings from the same file/module should be assigned to the same Validation Agent where possible
@@ -321,7 +404,7 @@ Quick mode exception:
 
 Minimum phase transition gates:
 - `Phase 1 → Phase 2`: phase0_checklist meets mode requirements
-- `Phase 2 → Phase 2.5`: All Agents completed or timeout-handled
+- `Phase 2 → Phase 2.5`: All Agents completed or timeout-handled, **and** Semgrep completed (completed/partial)
 - `Phase 2 → Phase 5` (quick only): Agents completed and coverage assessed
 - `Phase 2.5 → Phase 3`:
   * Coverage assessed
@@ -340,10 +423,10 @@ When [HALT] is triggered, instead of "blocking everything," execute the correspo
 
 | Trigger Condition | Recovery Strategy |
 |-------------------|-------------------|
-| Phase 0 incomplete | Supplement missing items and re-evaluate (Phase 0 max 2 retries, 3 total attempts) |
+| Phase 0 incomplete | Supplement missing items and re-evaluate (Phase 0 max 2 retries, 3 total attempts). Each retry **must** include: (a) failure reason from previous attempt, (b) specific improvement strategy (e.g., different Grep patterns, broader file scope), (c) targeted items to complete. Blind re-execution without improvement is prohibited |
 | D1-D3 is ❌ | Add targeted Agents and re-evaluate |
 | Agent failure | Retry once, then downgrade to ⚠️ and continue |
-| Phase 3/4 partial | Record the gap; may continue but report marked "incomplete" |
+| Phase 3/4 partial | Record the gap; may continue but report marked "incomplete". Phase 3 partial → report includes "**Deep Dive Incomplete**" watermark + Critical findings confidence capped at `medium`. Phase 4 partial → unvalidated Critical/High auto-downgraded to Medium + `needs_manual` |
 | phase_skip_violation | Roll back to the skipped Phase and re-execute |
 
 ---
@@ -359,7 +442,7 @@ Validation checklist:
 | 1 | Gates passed | Step 4 gate validation passed | Abort |
 | 2 | Coverage met | Overall coverage >= mode threshold (see coverage-matrix.md) | Add rounds/downgrade |
 | 3 | All Agents complete | No Agents in RUNNING state | Wait/timeout handling |
-| 4 | Phases complete | standard/deep: Phase 3/4 [PHASE] markers exist | Execute missing Phase |
+| 4 | Phases complete | standard/deep: Phase 3/4 [PHASE] markers exist AND operation traces detected (Phase 3: deeper data flow evidence produced for Critical/High findings; Phase 4: ≥1 Validation Agent launched or main thread validation performed) | Execute missing Phase. If markers exist but no operation traces → report auto-tagged as "QUICK_EQUIVALENT" |
 | 5 | Dedup complete | Phase 4b dedup executed (standard/deep), both 4a and 4c complete | Execute dedup |
 | 6 | D1-D3 met | standard/deep: D1-D3 all ✅ (or ⚠️ with explanation in limitations) | Add Agents |
 
@@ -371,6 +454,8 @@ Supplemental rules:
 - When `semgrep_status=completed`, all `semgrep-findings.json` hits must be categorized as confirmed/rejected/needs_manual
 - All Critical/High findings must provide a PoC; if not possible, must fill in "reason for non-reproducibility" and downgrade to needs_manual
 - Report format must follow [Report Template](report-template.md)
+- **Phase Skip Detector**: If main thread output lacks operation traces for Phase 2.5/3/4 (e.g., no "Phase 3 files read", no "Validation Agent launched", no `===MERGE_RESULT===`), trigger [HALT] with `phase_skip_violation`
+- **QUICK_EQUIVALENT tag**: When standard/deep mode skips Phase 3/4, the report header must include `⚠️ QUICK_EQUIVALENT: This report was generated without Deep Dive and Validation phases. Findings have not been independently verified.`
 
 ---
 
@@ -473,19 +558,19 @@ Cross-round state is injected as a JSON structure into the next round Agent's sy
 
 | Field | Type | Limit | Description |
 |-------|------|-------|-------------|
-| FILES_READ | `string[]` | ≤50 entries | List of read file paths; R(N+1) does not re-read by default |
+| FILES_READ | `string[]` | ≤100 entries (or directory-aggregated: directory + file count) | List of read file paths; R(N+1) does not re-read by default. When exceeding 100, aggregate by directory (record `dir:count` instead of individual files) |
 | COVERED | `Record<string, "✅"\|"⚠️"\|"❌"\|"N/A">` | — | D1-D10 coverage status |
 | GAPS | `string[]` | — | Uncovered/partially covered dimension IDs (N/A dimensions excluded) |
 
 ### Optional Fields
 
-| Field | Type | Limit | Description |
-|-------|------|-------|-------------|
-| CLEAN | `string[]` | — | Files confirmed to have no vulnerabilities |
-| FALSE_POSITIVES | `Array<{file, line, reason}>` | — | Excluded false positives |
-| HOTSPOTS | `Array<{file, lines, reason}>` | — | High-risk hotspot areas |
-| GREP_DONE | `Array<{pattern, scope}>` | ≤30 entries | Grep patterns already executed |
-| FINDINGS_SUMMARY | `Array<{id, severity, cwe, file, status}>` | ≤20 entries | Previous round findings summary |
+| Field | Type | Limit | Priority | Description |
+|-------|------|-------|----------|-------------|
+| CLEAN | `string[]` | — | Low | Files confirmed to have no vulnerabilities |
+| FALSE_POSITIVES | `Array<{file, line, reason}>` | — | Low | Excluded false positives |
+| HOTSPOTS | `Array<{file, lines, reason}>` | — | High | High-risk hotspot areas |
+| GREP_DONE | `Array<{pattern, scope}>` | ≤30 entries | Low | Grep patterns already executed |
+| FINDINGS_SUMMARY | `Array<{id, severity, cwe, file, status}>` | ≤30 entries (severity-stratified: all Critical/High retained, Low truncated first) | High | Previous round findings summary |
 
 ### Agent Behavioral Rules
 
@@ -497,12 +582,14 @@ Cross-round state is injected as a JSON structure into the next round Agent's sy
 
 ### Transfer Integrity Validation
 
-The round controller validates before injection:
-- FILES_READ is non-empty (and ≤50 entries; oldest entries truncated if exceeded)
+The round controller validates three core fields before injection:
+- FILES_READ is non-empty (and ≤100 entries; oldest entries truncated if exceeded, or directory-aggregated when count > 100)
 - COVERED contains all D1-D10 keys
+- FINDINGS_SUMMARY ≤30 entries (severity-stratified: all Critical/High retained first, then High, then Medium; Low truncated first)
+
+Optional field validation (when present):
 - GAPS is consistent with COVERED (GAPS dimensions are ⚠️ or ❌ in COVERED)
 - GREP_DONE ≤30 entries (oldest entries truncated if exceeded)
-- FINDINGS_SUMMARY ≤20 entries (retained in descending severity order if exceeded)
 
 ---
 
@@ -541,8 +628,8 @@ Rules:
 | started_at | string | Start timestamp |
 | completed_at | string \| null | Completion timestamp |
 
-- Semgrep scanning executes in Phase 2; validation is unified in Phase 4
-- All Agents must complete or be marked as timed out before entering evaluation
+- Semgrep scanning launches in parallel with Agents during Phase 2; validation is unified in Phase 4
+- All Agents must complete or be marked as timed out, and Semgrep must complete (completed/partial), before entering evaluation
 - Final report must not be generated before Agents complete
 - If any Agent shows failed/sibling_error/not_found: retry once first; if still failing, convert to timeout and downgrade corresponding dimensions to ⚠️
 
