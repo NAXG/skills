@@ -3,6 +3,7 @@ name: code-audit
 description: "White-box code security audit — finds vulnerabilities (SQLi, XSS, RCE, SSRF, IDOR, deserialization, etc.), reviews authentication/authorization, traces Source-to-Sink data flows, and checks OWASP Top 10 coverage. Use when asked to find vulnerabilities, do security review, penetration-test prep, or audit code for security issues. Modes: quick (fast scan), standard (full OWASP), deep (multi-round with attack chains)."
 argument-hint: "[mode] — modes: quick|standard|deep"
 allowed-tools: Read, Grep, Glob, Bash, Task, Write
+recommended-model: "opus"
 ---
 
 # code-audit Skill
