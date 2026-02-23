@@ -22,13 +22,17 @@ recommended-model: "opus"
 
 ### 1.1 Anti-Hallucination Hard Rules
 
+LLMs are prone to confidently generating plausible-looking file paths, code snippets, and vulnerability descriptions that don't actually exist in the codebase. In a security audit, a fabricated finding wastes the developer's time investigating phantom issues and erodes trust in the entire report — once one finding is proven false, every other finding becomes suspect.
+
 - Do not guess file paths: must verify file existence with `Glob/Read`
 - Do not fabricate code snippets: must reference actual output from the `Read` tool
 - Do not report vulnerabilities in unread files: code that hasn't been read must not appear in the report
 
-**Core principle: Better to miss a vulnerability than to report a false positive.**
+**Core principle: Better to miss a vulnerability than to report a false positive.** A missed real vulnerability can be caught in a follow-up audit, but a false positive permanently damages the report's credibility.
 
 ### 1.2 Anti-Confirmation Bias Rules
+
+Security auditors (both human and LLM) naturally gravitate toward familiar vulnerability types and skip categories that "seem unlikely." This creates blind spots — an attacker only needs one overlooked category to compromise the system. Systematic coverage prevents the audit from becoming a superficial scan of just the obvious issues.
 
 - Do not skip a vulnerability category just because it "seems unlikely"
 - Must enumerate sensitive operations and verify each one
@@ -43,11 +47,13 @@ All vulnerabilities are assessed using the following flow:
 
 ### 1.4 Priority Principle
 
+Not all vulnerabilities are equal. An unauthenticated SQL injection on a public endpoint is far more dangerous than a theoretical race condition behind admin authentication. This formula helps allocate limited audit time to where attackers would actually look first.
+
 ```
 Priority = (Attack Surface Size × Potential Impact) / Exploitation Complexity
 ```
 
-**Top priority: Authentication chain** (authentication bypass amplifies the severity of other vulnerabilities).
+**Top priority: Authentication chain** — because an authentication bypass amplifies the severity of every other vulnerability in the system. A Medium-severity IDOR becomes Critical when any anonymous user can access it.
 
 ---
 
@@ -61,11 +67,11 @@ Priority = (Attack Surface Size × Potential Impact) / Exploitation Complexity
 
 ### Mandatory Loading by Mode
 
-| Mode | Required Documents |
-|------|-------------------|
-| `quick` | execution-controller.md + agent-contract.md + phase0-attack-surface.md |
-| `standard` | quick baseline + references/coverage-matrix.md |
-| `deep` | standard baseline + references/agent-output-recovery.md |
+| Mode | Upfront | After [PLAN_ACK] | On-Demand |
+|------|---------|-------------------|-----------|
+| `quick` | execution-controller.md + agent-contract.md + phase0-attack-surface.md | (none) | (none) |
+| `standard` | quick baseline + coverage-matrix.md | phase-definitions.md + multi-round-protocol.md | validation-agent-contracts.md (Phase 4) |
+| `deep` | standard baseline + agent-output-recovery.md | phase-definitions.md + multi-round-protocol.md + deep-mode-state-machine.md | validation-agent-contracts.md (Phase 4) |
 
 For execution flow, gates, phase transitions, report admission, and other rules, see [execution-controller.md](references/execution-controller.md) (authoritative source for execution flow; in case of conflict with other documents, this file takes precedence).
 
@@ -75,9 +81,12 @@ For execution flow, gates, phase transitions, report admission, and other rules,
 
 ### 3.1 Execution Control
 
-| Document | Responsibility | Required for Mode |
-|----------|---------------|-------------------|
-| [execution-controller.md](references/execution-controller.md) | Execution order, gates, phase transitions, `can_report()`, budget strategy, cross-round protocol, Deep mode state machine | All modes |
+| Document | Responsibility | Loading |
+|----------|---------------|---------|
+| [execution-controller.md](references/execution-controller.md) | Execution order, gates, Semgrep timing, `can_report()`, coverage anti-inflation, special project types | Upfront (all modes) |
+| [phase-definitions.md](references/phase-definitions.md) | Phase execution sequence, [PHASE] markers, Phase 2/2.5/3/4/5 definitions, no-skip rules, phase transition gates | After [PLAN_ACK] (standard/deep) |
+| [multi-round-protocol.md](references/multi-round-protocol.md) | Agent count allocation, round limits, turns budget, convergence rules, GAPS counting, cross-round state transfer | After [PLAN_ACK] (standard/deep) |
+| [deep-mode-state-machine.md](references/deep-mode-state-machine.md) | Deep mode state diagram, ROUND_N_RUNNING/EVALUATION, agent_registry | After [PLAN_ACK] (deep only) |
 
 ### 3.2 Coverage & Validation
 
@@ -88,10 +97,11 @@ For execution flow, gates, phase transitions, report admission, and other rules,
 
 ### 3.3 Agent & Output
 
-| Document | Responsibility | Required for Mode |
-|----------|---------------|-------------------|
-| [agent-contract.md](references/agent-contract.md) | Agent contract, output templates, truncation handling | All modes |
-| [agent-output-recovery.md](references/agent-output-recovery.md) | Truncation detection and recovery process | deep |
+| Document | Responsibility | Loading |
+|----------|---------------|---------|
+| [agent-contract.md](references/agent-contract.md) | Agent contract, output templates, truncation handling | Upfront (all modes) |
+| [validation-agent-contracts.md](references/validation-agent-contracts.md) | Phase 4a semgrep-verify + Phase 4c validate-* agent contracts | On-demand at Phase 4 (standard/deep) |
+| [agent-output-recovery.md](references/agent-output-recovery.md) | Truncation detection and recovery process | Upfront (deep) |
 | [report-template.md](references/report-template.md) | Report template, gate evidence, deduplication rules | All modes |
 
 ### 3.4 Reconnaissance & Pattern Library

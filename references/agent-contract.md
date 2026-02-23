@@ -2,22 +2,34 @@
 
 > Load this file before launching parallel Agents in Phase 2.
 
+## Table of Contents
+
+- [Contract Text](#contract-text-injected-into-every-agent)
+- [Tool Call Limits](#tool-call-limits)
+- [Scan Strategy](#scan-strategy-breadth-vs-depth-budget-allocation)
+- [Sink Classification Table](#sink-standard-classification-table)
+- [Call Chain Tracing Rules](#call-chain-tracing-rules)
+- [Language/Framework Module Preloading](#languageframework-module-preloading-mandatory)
+- [R2 Additional Constraints](#r2-additional-constraints)
+- [Output Template](#mandatory-output-template--non-conforming-output-will-be-treated-as-truncated)
+- [Truncation Handling](#truncation-handling)
+
 ## Contract Text (Injected into Every Agent)
 
 ```text
 ---Agent Contract---
 1. Search paths: {paths}. Exclude: node_modules, .git, build, target, bin, obj, dist, vendor, __pycache__, .gradle, coverage, .next, .nuxt, out, public/assets
-2. Must use Grep/Glob/Read tools. grep/find/cat in Bash are prohibited.
-3. Tool call limits (see "Tool Call Limits" section below), Bash ≤10 calls. max_turns: {N}. Document preloading uses a separate budget (up to 10 Read calls, not counted against the main limit).
-4. Turn reservation: When turns_used ≥ max_turns-5, stop exploration and produce structured output. Additionally, output a progress checkpoint every 10 turns (format: `[CHECKPOINT] turn:{N} findings:{count} files_read:{count} remaining_dims:{list}`).
-5. Search strategy: Grep to locate line numbers → Read offset/limit for context (±20 lines). Reading >500 lines at once is prohibited.
-6. Output: Return using the structured template. Returning large blocks of raw code (>3 lines) is prohibited.
+2. Must use Grep/Glob/Read tools. grep/find/cat in Bash are prohibited — dedicated tools provide structured output that's easier to reference in findings and avoids shell injection risks when scanning untrusted codebases.
+3. Tool call limits (see "Tool Call Limits" section below), Bash ≤10 calls — Bash is restricted because shell commands are slow, hard to audit, and can accidentally modify the target codebase. max_turns: {N}. Document preloading uses a separate budget (up to 10 Read calls, not counted against the main limit).
+4. Turn reservation: When turns_used ≥ max_turns-5, stop exploration and produce structured output — better to report 80% of findings in proper format than to find 100% but get truncated mid-output. Additionally, output a progress checkpoint every 10 turns (format: `[CHECKPOINT] turn:{N} findings:{count} files_read:{count} remaining_dims:{list}`).
+5. Search strategy: Grep to locate line numbers → Read offset/limit for context (±20 lines). Reading >500 lines at once is prohibited — large reads waste context window and make it harder to pinpoint the exact vulnerable code.
+6. Output: Return using the structured template. Returning large blocks of raw code (>3 lines) is prohibited — the structured template enables automated merging, deduplication, and cross-agent validation; raw code blocks break this pipeline.
 7. Merge report when ≥5 similar vulnerabilities found. For the same pattern across multiple files, list them without deep-diving each one.
-8. Deep-traced data flow total budget: ≤ 20 per Agent. Agent allocates across Sink categories by risk priority. No single category may consume > 50% of budget.
+8. Deep-traced data flow total budget: ≤ 20 per Agent. This cap prevents an Agent from spending all its tool calls tracing a single complex flow while ignoring the rest of its assigned dimensions. Agent allocates across Sink categories by risk priority. No single category may consume > 50% of budget — ensures breadth even when one category looks especially promising.
 9. Data flow tracing: Source → [Transform1 ... TransformN] → Sink, trace at least 3 levels of call chain.
 10. Truncation defense: AGENT_RESULT at the beginning, AGENT_RESULT_END sentinel at the end.
-11. Anti-hallucination: Every finding must reference actual Read tool output. Guessing paths and reporting unread files are prohibited.
-12. Test directory strategy: Exclude test/tests by default; but D7 (hardcoded secrets) and D8 (configuration defects) still require scanning test directories.
+11. Anti-hallucination: Every finding must reference actual Read tool output. Guessing paths and reporting unread files are prohibited — a single fabricated finding destroys the credibility of the entire report.
+12. Test directory strategy: Exclude test/tests by default — test code is not deployed and most vulnerabilities there have no real-world impact. But D7 (hardcoded secrets) and D8 (configuration defects) still require scanning test directories, because secrets and credentials committed in test files are just as real and exploitable.
 13. Pre-validation: Every Critical/High finding must perform inline pre-validation (simplified four-step validation).
     Medium/Low may mark validation: skip. Pre-validation does not consume additional tool call budget—
     use the code context already read when discovering the vulnerability.
@@ -32,11 +44,13 @@ Per Agent **during a single round of execution** (from launch to AGENT_RESULT_EN
 |---------------|-------|-------------|
 | Grep + Glob + Read | Combined limit (dynamic by project scale): <10K LOC = 60, 10K-50K LOC = 80, >50K LOC = 100 | Search and read operations. Document preloading Read calls (up to 10) are excluded from this limit and counted separately |
 | Bash | ≤ 10 calls | Not counted toward the 60 call limit |
-| Edit + Write | 0 calls | Agents must not modify target code |
+| Edit + Write | 0 calls | Agents must not modify target code — an audit is a read-only operation; modifying code would compromise the evidence chain and risk introducing new issues |
 
 > When limits are exceeded, the Agent should immediately output currently collected findings and end with AGENT_RESULT_END.
 
 ### Scan Strategy: Breadth vs Depth Budget Allocation
+
+Breadth-first scanning is critical because attackers look for any opening — a single missed dimension could contain the vulnerability they exploit. But depth is equally important because pattern matches alone don't confirm exploitability. The 60/40 split ensures both goals are served without sacrificing one for the other.
 
 ```text
 Phase A — Breadth Scanning (first 60% of tool budget):
@@ -110,39 +124,11 @@ Deep-traced data flow total budget: ≤ 20 per Agent. Agent allocates across Sin
 ## R2 Additional Constraints
 
 - Do not re-read `FILES_READ` by default; only allowed for attack chain validation, new finding backtracking, or HOTSPOTS correlation verification, with stated justification
-- Full field definitions, data formats, and behavioral rules for cross-round state transfer: see the "Cross-Round State Transfer Protocol" section in execution-controller.md
+- Full field definitions, data formats, and behavioral rules for cross-round state transfer: see [Multi-Round Protocol](multi-round-protocol.md)
 - Do not reuse `GREP_DONE` by default; only allowed for verifying new evidence or cross-module propagation, with stated justification
 - Skip `CLEAN` and `FALSE_POSITIVES` by default; review is allowed when conflicting evidence arises, with the conflict source recorded
 
-## Semgrep Verification Agent (`agent-semgrep-verify`)
-
-**Execution phase**: Phase 4a (Validation — Semgrep Verification)
-
-Purpose: During the unified Phase 4 validation stage, verify all hits in the parsed `semgrep-findings.json`.
-
-Input:
-- `semgrep-findings.json` (produced by Phase 2)
-- Read code evidence (Read/Grep)
-
-Must output:
-
-```text
-===SEMGREP_VERIFY===
-semgrep_findings_total: {n}
-confirmed: [{finding_id,...}]
-rejected: [{finding_id,...}]
-needs_manual: [{finding_id,...}]
-unresolved_findings_count: {n}
-rule_hotspots: [{rule_id:count,...}]
-file_hotspots: [{file:count,...}]
-===END_SEMGREP_VERIFY===
-```
-
-Rules:
-- Every finding must be categorized as `confirmed/rejected/needs_manual`
-- When `semgrep_status=completed`: `confirmed + rejected + needs_manual = semgrep_findings_total`
-- No "unarchived and ignored" findings allowed
-- `rule_hotspots/file_hotspots` provided for next round reference
+> **Semgrep Verification Agent and Validation Agent contracts**: loaded on-demand at Phase 4 entry. See [Validation Agent Contracts](validation-agent-contracts.md).
 
 ## MANDATORY Output Template — Non-conforming output will be treated as TRUNCATED
 
@@ -304,66 +290,6 @@ validation: {overall} | 1:{result}({reason}) 2:{result}({reason}) 3:{result}({re
 - `pass`: All four steps passed; Phase 4 only needs spot-checking
 - `partial`: Some steps uncertain; Phase 4 needs focused validation
 - `skip`: Agent ran out of tool budget; Phase 4 needs full validation
-
-## Validation Agent Contract (`agent-validate-*`)
-
-**Execution phase**: Phase 4c (Cross-Validation)
-
-Input:
-- Findings list (including Phase 2 Agent original output + pre-validation status)
-- Phase 2.5 merged_findings context
-- Phase 4b severity calibration results
-
-Tasks:
-- Perform independent validation for each assigned finding
-- Must re-read key code (do not trust Phase 2 Agent's evidence field)
-- Output validation conclusions
-
-Constraints:
-- max_turns: 15
-- Tool calls: Grep+Glob+Read ≤ base(20) + per_finding(8), capped at 60, Bash ≤ 5
-- Must not modify the finding's classification (CWE) or type; can only modify severity and confidence
-- Each Critical/High must reference specific code lines (file:line)
-
-**Cross-validation principle**:
-- Validation Agents **must validate findings from other** Phase 2 Agents (cannot validate their own)
-- Assignment strategy: cross-assign by Phase 2 Agent source
-- If only 1 Phase 2 Agent: the Validation Agent must independently re-read all critical code paths (cannot rely on Phase 2 Agent's evidence), and must execute the full 4-step validation for every Critical/High finding
-
-**Grouping strategy** (reduce redundant code reads):
-- Findings from the same file/module should be assigned to the same Validation Agent where possible
-- Use `file_hotspots` (produced by Phase 4a) as the grouping basis
-
-**Output template**:
-
-```text
-===VALIDATION_RESULT===
-agent_id: {agent_id}
-round: {n}
-validated_count: {n}
-source_agents: {list of validated Phase 2 Agents}
-
-[V-FNNN] confirmed | {original severity} → {validated severity}
-  original: {source_agent_id} [FNNN]
-  verification: 1:{result} 2:{result} 3:{result} 4:{result}
-  evidence_file: {file}:{line}
-  notes: {validation notes}
-
-[V-FNNN] downgraded | {original severity} → {validated severity}
-  original: {source_agent_id} [FNNN]
-  verification: 1:{result} 2:{result} 3:{result} 4:{result}
-  reason: {downgrade reason + code evidence}
-  evidence_file: {file}:{line}
-
-[V-FNNN] rejected
-  original: {source_agent_id} [FNNN]
-  verification: 1:{result}
-  reason: {rejection reason}
-
-===VALIDATION_RESULT_END===
-```
-
-**Degradation path**: When a Validation Agent fails or is truncated, fall back to main thread validation without blocking the flow.
 
 ### Format Anomaly Handling
 
