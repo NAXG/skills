@@ -26,8 +26,10 @@ Marking a dimension as N/A requires **all** of:
 
 ### Constraints
 
-- **D1 (Injection) does not allow N/A**: All projects may have injection risks
-- **D2 (Authentication) and D3 (Authorization)**: N/A only allowed for library projects (no HTTP entry points); not allowed for web applications
+These restrictions reflect the reality that certain vulnerability categories are nearly universal in web applications. Allowing them to be skipped via N/A would create dangerous blind spots.
+
+- **D1 (Injection) does not allow N/A**: Almost every application processes user input in some form — even non-web projects may have CLI arguments, config files, or inter-process communication that could be injection vectors
+- **D2 (Authentication) and D3 (Authorization)**: N/A only allowed for library projects (no HTTP entry points); not allowed for web applications — any web application that serves users must authenticate and authorize them, even if it delegates to an external identity provider
 - D4-D10: May be marked N/A when determination conditions are met
 
 ### Overall Scoring Formula
@@ -277,6 +279,8 @@ crud_types: {n} resource types with CRUD consistency verified
 - `N/A`: Phase 0 did not detect related configuration + Agent Grep searches returned zero hits
 
 ### Sink Fan-out Rate (Prevent Shallow Analysis)
+
+The fan-out rate catches a common failure mode: an Agent runs many Grep searches, gets dozens of hits, but only actually reads and traces a handful of them. Without this check, the Agent could claim ✅ coverage based on search volume alone while leaving most matches unexamined.
 
 ```text
 Fan-out rate = files with traced data flows / files with Grep hits

@@ -31,38 +31,38 @@
 
 ### Prototype Pollution
 ```javascript
-// 危险: 递归合并用户输入到对象
+// Dangerous: recursively merging user input into objects
 _.merge(target, userInput)     // {"__proto__": {"isAdmin": true}}
-Object.assign(target, source)  // 浅拷贝也可污染
-$.extend(true, target, source) // jQuery 深拷贝
+Object.assign(target, source)  // Shallow copy can also pollute
+$.extend(true, target, source) // jQuery deep copy
 
-// 危险: 自定义 merge 未过滤 __proto__/constructor
+// Dangerous: custom merge without filtering __proto__/constructor
 for (let key in source) { target[key] = source[key]; }
 ```
 
 ### NoSQL Injection (MongoDB)
 ```javascript
-// 危险: 直接将 req.body 作为查询条件
+// Dangerous: directly using req.body as query conditions
 User.find({ user: req.body.user, pass: req.body.pass })
-// 攻击: {"user":"admin","pass":{"$ne":""}} → 绕过密码
+// Attack: {"user":"admin","pass":{"$ne":""}} → bypasses password
 
-// 危险: $where 运算符
+// Dangerous: $where operator
 User.find({ $where: "this.name == '" + name + "'" })
 ```
 
 ### ReDoS (Regular Expression Denial of Service)
 ```javascript
-// 危险模式: 嵌套量词 + 回溯
-/(a+)+$/        // 指数级回溯
-/([a-zA-Z]+)*$/ // 同上
-/(a|a)*$/       // 交替 + 重复
+// Dangerous pattern: nested quantifiers + backtracking
+/(a+)+$/        // Exponential backtracking
+/([a-zA-Z]+)*$/ // Same as above
+/(a|a)*$/       // Alternation + repetition
 ```
 
 ### Unsafe require/import
 ```javascript
-// 危险: 动态 require 用户输入
-require(req.query.module)   // 任意模块加载
-import(userInput)           // 动态 import
+// Dangerous: dynamic require with user input
+require(req.query.module)   // Arbitrary module loading
+import(userInput)           // Dynamic import
 ```
 
 ---

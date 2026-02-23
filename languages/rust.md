@@ -23,39 +23,39 @@
 ### unsafe Code Blocks
 ```rust
 unsafe {
-    // 绕过 Rust 所有安全保证
-    // 裸指针解引用、FFI 调用、可变静态变量
+    // bypasses all Rust safety guarantees
+    // raw pointer dereference, FFI calls, mutable static variables
     let ptr = 0x12345 as *const i32;
-    println!("{}", *ptr);  // 未定义行为
+    println!("{}", *ptr);  // undefined behavior
 }
 ```
 
 ### FFI Boundaries (All FFI Calls Are unsafe)
 ```rust
 extern "C" {
-    fn external_func(buf: *mut u8, len: usize);  // C 函数不受 Rust 内存安全保护
+    fn external_func(buf: *mut u8, len: usize);  // C functions are not protected by Rust memory safety
 }
 ```
 
 ### Tauri Desktop Application Specifics
 ```rust
-// 危险: 前端可调用后端命令
+// Dangerous: frontend can invoke backend commands
 #[tauri::command]
-fn read_file(path: String) -> String {  // 路径未验证
+fn read_file(path: String) -> String {  // path not validated
     std::fs::read_to_string(path).unwrap()
 }
 
-// 危险: allowlist 过宽
+// Dangerous: allowlist too permissive
 // tauri.conf.json: "allowlist": { "all": true }
 ```
 
 ### format! Macro SQL Injection
 ```rust
-// 危险
+// Dangerous
 let query = format!("SELECT * FROM users WHERE name = '{}'", name);
 sqlx::query(&query).fetch_all(&pool).await?;
 
-// 安全
+// Safe
 sqlx::query("SELECT * FROM users WHERE name = $1")
     .bind(&name)
     .fetch_all(&pool).await?;

@@ -29,9 +29,9 @@
 
 ### text/template vs html/template
 ```go
-import "text/template"   // 无自动 HTML 转义，XSS 风险
-import "html/template"   // 自动转义，但以下仍危险:
-template.HTML(userInput)  // 显式标记为安全，绕过转义
+import "text/template"   // no auto HTML escaping, XSS risk
+import "html/template"   // auto-escaping, but the following are still dangerous:
+template.HTML(userInput)  // explicitly marked as safe, bypasses escaping
 template.JS(userInput)
 template.CSS(userInput)
 ```
@@ -39,29 +39,29 @@ template.CSS(userInput)
 ### filepath.Join Does Not Prevent Path Traversal
 ```go
 filepath.Join("/uploads", "../../etc/passwd")  // = "/etc/passwd"
-// 必须验证最终路径在目标目录内
+// must validate that the final path is within the target directory
 ```
 
 ### Goroutine Concurrency Safety (Merged from go_security.md)
 ```go
-// 危险: 并发读写 map (DATA RACE)
+// Dangerous: concurrent read/write to map (DATA RACE)
 var cache = make(map[string]string)
-// Go map 不是线程安全的，并发读写会 panic
+// Go map is not thread-safe, concurrent read/write will panic
 
-// 危险: 无缓冲 channel 导致 goroutine 泄漏
+// Dangerous: unbuffered channel causing goroutine leak
 ch := make(chan int)
-go func() { ch <- result }()  // 无人接收则永久阻塞
+go func() { ch <- result }()  // blocks forever if no receiver
 ```
 
 ### strconv.Atoi Integer Overflow
 ```go
 size, _ := strconv.Atoi(input)
-smallSize := int16(size)  // 65536 → 0，溢出!
+smallSize := int16(size)  // 65536 → 0, overflow!
 ```
 
 ### pprof Exposure
 ```go
-import _ "net/http/pprof"  // 自动暴露 /debug/pprof
+import _ "net/http/pprof"  // automatically exposes /debug/pprof
 ```
 
 ---

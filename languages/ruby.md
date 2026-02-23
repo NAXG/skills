@@ -31,55 +31,55 @@
 
 ### send / public_send Dynamic Method Invocation
 ```ruby
-# 危险: 用户可控方法名
-object.send(params[:method], params[:arg])  # 可调用任何方法包括 private
-object.public_send(params[:method])         # 稍安全但仍可调用 system 等
+# Dangerous: user-controllable method name
+object.send(params[:method], params[:arg])  # can call any method including private
+object.public_send(params[:method])         # slightly safer but can still call system etc.
 ```
 
 ### ERB Template Injection
 ```ruby
-# 危险: 用户输入作为模板
-ERB.new(user_input).result(binding)  # RCE! binding 暴露上下文
+# Dangerous: user input used as template
+ERB.new(user_input).result(binding)  # RCE! binding exposes context
 ```
 
 ### YAML.load (Unsafe by Default in Ruby < 3.1)
 ```ruby
-YAML.load(data)       # 危险: 允许任意对象实例化
-YAML.safe_load(data)  # 安全: 只允许基本类型
-# Ruby 3.1+ YAML.load 默认使用 safe_load 行为
+YAML.load(data)       # Dangerous: allows arbitrary object instantiation
+YAML.safe_load(data)  # Safe: only allows basic types
+# Ruby 3.1+ YAML.load defaults to safe_load behavior
 ```
 
 ### Rails SQL Injection Hidden Spots
 ```ruby
-# 危险: order/pluck/reorder 接受字符串
-User.order(params[:sort])              # SQL注入
-User.where("name LIKE '%#{q}%'")       # 字符串插值
+# Dangerous: order/pluck/reorder accept strings
+User.order(params[:sort])              # SQL injection
+User.where("name LIKE '%#{q}%'")       # string interpolation
 User.find_by_sql("SELECT * FROM users WHERE id = #{id}")
 
-# 安全
-User.order(Arel.sql(sanitized))  # 但 Arel.sql 本身不消毒
+# Safe
+User.order(Arel.sql(sanitized))  # but Arel.sql itself does not sanitize
 User.where("name LIKE ?", "%#{q}%")
 ```
 
 ### html_safe / raw XSS
 ```ruby
-# 危险: 标记字符串为安全，绕过 Rails 自动转义
+# Dangerous: marks string as safe, bypassing Rails auto-escaping
 raw(user_input)               # XSS
 user_input.html_safe          # XSS
 content_tag(:div, user_input.html_safe)
 
-# ERB 中
+# In ERB
 <%= raw @user_input %>        # XSS
-<%== @user_input %>           # XSS (等价于 raw)
+<%== @user_input %>           # XSS (equivalent to raw)
 ```
 
 ### Mass Assignment
 ```ruby
-# 危险: permit 过于宽松
-params.require(:user).permit!  # 允许所有参数
-params.require(:user).permit(:name, :email, :admin)  # admin 可被篡改
+# Dangerous: permit is too permissive
+params.require(:user).permit!  # allows all parameters
+params.require(:user).permit(:name, :email, :admin)  # admin can be tampered with
 
-# 安全: 只允许必要字段
+# Safe: only allow necessary fields
 params.require(:user).permit(:name, :email)
 ```
 

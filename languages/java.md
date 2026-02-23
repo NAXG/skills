@@ -66,9 +66,9 @@ DocumentBuilder|SAXParser|SAXReader|SAXBuilder|XMLInputFactory|TransformerFactor
 disallow-doctype-decl|external-general-entities
 
 # SQL injection
-\$\{                                          # MyBatis ${}（在.xml文件中搜索）
-createQuery\s*\(.*\+|createNativeQuery.*\+    # HQL/SQL拼接
-db\.Raw\(.*\+|\.last\s*\(                     # ORM原生SQL
+\$\{                                          # MyBatis ${} (search in .xml files)
+createQuery\s*\(.*\+|createNativeQuery.*\+    # HQL/SQL concatenation
+db\.Raw\(.*\+|\.last\s*\(                     # ORM raw SQL
 QueryWrapper.*apply|UpdateWrapper.*apply       # MyBatis-Plus
 @Query.*nativeQuery.*true                      # Spring Data JPA
 fmt\.Sprintf.*(SELECT|INSERT|UPDATE|DELETE)

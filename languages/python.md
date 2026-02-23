@@ -31,31 +31,31 @@
 
 ### f-string / format Injection
 ```python
-# 危险: 用户输入作为格式化模板
-user_input.format(**locals())  # 可泄露局部变量
-f"{user_input}"                # f-string 本身安全，但双重格式化危险
+# Dangerous: user input used as format template
+user_input.format(**locals())  # can leak local variables
+f"{user_input}"                # f-string itself is safe, but double formatting is dangerous
 
-# Django 双重格式化
+# Django double formatting
 template = "Hello %s" % user_input  # user_input = "{settings.SECRET_KEY}"
-template.format(settings=settings)  # 泄露 SECRET_KEY
+template.format(settings=settings)  # leaks SECRET_KEY
 ```
 
 ### yaml.load Must Specify SafeLoader
 ```python
-# 危险
-yaml.load(data)                    # 默认 FullLoader，RCE
-yaml.load(data, Loader=yaml.Loader)  # FullLoader，RCE
+# Dangerous
+yaml.load(data)                    # default FullLoader, RCE
+yaml.load(data, Loader=yaml.Loader)  # FullLoader, RCE
 
-# 安全
-yaml.safe_load(data)               # 等价于 SafeLoader
+# Safe
+yaml.safe_load(data)               # equivalent to SafeLoader
 yaml.load(data, Loader=yaml.SafeLoader)
 ```
 
 ### Django filter(**dict) Parameter Name Injection
 ```python
-# 危险: 用户可控字段名
+# Dangerous: user-controllable field names
 User.objects.filter(**request.GET.dict())
-# 攻击: ?password__startswith=a → 逐字符猜测密码
+# Attack: ?password__startswith=a → character-by-character password guessing
 ```
 
 ### Deserialization (Merged from python_deserialization.md)

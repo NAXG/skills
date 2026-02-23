@@ -36,23 +36,23 @@
 ### Off-by-one Errors
 ```c
 char buf[10];
-for (int i = 0; i <= 10; i++)  // 应为 < 10
+for (int i = 0; i <= 10; i++)  // should be < 10
     buf[i] = data[i];
 ```
 
 ### TOCTOU (Time-of-Check-Time-of-Use)
 ```c
-if (access(filename, R_OK) == 0) {  // 检查
-    fd = open(filename, O_RDONLY);    // 使用 (符号链接可能已被替换)
+if (access(filename, R_OK) == 0) {  // check
+    fd = open(filename, O_RDONLY);    // use (symlink may have been replaced)
 }
 ```
 
 ### Uninitialized Variables
 ```c
-int *ptr;         // 未初始化
+int *ptr;         // uninitialized
 if (condition)
     ptr = malloc(size);
-*ptr = value;     // condition 为 false 时 ptr 未初始化
+*ptr = value;     // ptr is uninitialized when condition is false
 ```
 
 ---

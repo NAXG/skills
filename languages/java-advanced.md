@@ -56,10 +56,10 @@ MethodInvokeTypeProvider|ObjectFactoryDelegatingInvocationHandler
 ObjectInputFilter filter = ObjectInputFilter.Config.createFilter("java.base/*;!*");
 ois.setObjectInputFilter(filter);
 
-// Jackson: 禁用多态
+// Jackson: disable polymorphic typing
 objectMapper.deactivateDefaultTyping();
 
-// XStream: 白名单
+// XStream: whitelist
 xstream.allowTypes(new Class[] { SafeClass.class });
 ```
 

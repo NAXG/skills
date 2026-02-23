@@ -138,12 +138,13 @@ Quick Decision:
 | Medium Confidence | Incomplete data flow or bypass conditions not fully confirmed | Medium |
 | Needs Verification | Pattern match only, not fully traced | Low/Info |
 
-Hard Rule: Critical/High must reach "High Confidence" or "Verified".
-PoC Gate: Critical/High must provide a PoC; if no PoC, must state "Non-Reproducibility Reason" and mark as `needs_manual` or downgrade confidence.
+Hard Rule: Critical/High must reach "High Confidence" or "Verified" — because these severity levels trigger immediate remediation work and potentially delay releases. Reporting a Critical finding based on a pattern match alone would cause unnecessary panic and waste engineering time on investigating a phantom issue.
+
+PoC Gate: Critical/High must provide a PoC; if no PoC, must state "Non-Reproducibility Reason" and mark as `needs_manual` or downgrade confidence. A PoC transforms an abstract risk assessment into concrete evidence that developers can verify and reproduce themselves.
 
 ## Severity Secondary Calibration (Cross-Agent)
 
-The main thread executes secondary calibration in Phase 4b "after merge deduplication" to prevent rating drift across different Agents.
+The main thread executes secondary calibration in Phase 4b "after merge deduplication" to prevent rating drift across different Agents. Without calibration, different Agents may rate similar vulnerabilities at different severity levels based on their individual context — one Agent might rate an SSRF as High while another rates a nearly identical one as Medium. The scoring model normalizes these ratings using objective criteria.
 
 Calibration Score:
 

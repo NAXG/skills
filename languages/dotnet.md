@@ -34,45 +34,45 @@
 ```csharp
 BinaryFormatter formatter = new BinaryFormatter();
 object obj = formatter.Deserialize(stream);  // RCE!
-// 同样危险: SoapFormatter, NetDataContractSerializer, ObjectStateFormatter, LosFormatter
+// Also dangerous: SoapFormatter, NetDataContractSerializer, ObjectStateFormatter, LosFormatter
 ```
 
 ### Newtonsoft.Json TypeNameHandling
 ```csharp
 var settings = new JsonSerializerSettings {
-    TypeNameHandling = TypeNameHandling.All  // 危险! 允许 $type 指定类型
+    TypeNameHandling = TypeNameHandling.All  // Dangerous! Allows $type to specify types
 };
-// TypeNameHandling.Auto / Objects 也危险
-// 安全: TypeNameHandling.None (默认)
+// TypeNameHandling.Auto / Objects are also dangerous
+// Safe: TypeNameHandling.None (default)
 ```
 
 ### Entity Framework Raw SQL
 ```csharp
-// 危险
+// Dangerous
 context.Users.FromSqlRaw($"SELECT * FROM Users WHERE Name = '{name}'");
 context.Database.ExecuteSqlRaw($"DELETE FROM Users WHERE Id = {id}");
 
-// 安全: FromSqlInterpolated 自动参数化
+// Safe: FromSqlInterpolated auto-parameterizes
 context.Users.FromSqlInterpolated($"SELECT * FROM Users WHERE Name = {name}");
 ```
 
 ### Path.Combine Does Not Prevent Path Traversal
 ```csharp
 Path.Combine("uploads", "../../etc/passwd")  // = "../../etc/passwd"
-// 如果第二参数是绝对路径，直接返回第二参数
+// If the second argument is an absolute path, it directly returns the second argument
 Path.Combine("uploads", "/etc/passwd")  // = "/etc/passwd"
 ```
 
 ### ViewState Deserialization (ASP.NET WebForms)
 ```csharp
-// machineKey 泄露 → ViewState 反序列化 RCE
-// 检查 web.config 中的 machineKey 配置
+// machineKey leakage -> ViewState deserialization RCE
+// Check machineKey configuration in web.config
 ```
 
 ### Razor View XSS
 ```csharp
-@Html.Raw(userInput)  // 危险: 不转义
-@userInput            // 安全: 自动转义
+@Html.Raw(userInput)  // Dangerous: no escaping
+@userInput            // Safe: auto-escaping
 ```
 
 ---

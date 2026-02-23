@@ -33,17 +33,17 @@
 
 ### Variable Overwrite
 ```php
-extract($_GET);          // 将 GET 参数注册为变量，可覆盖 $admin 等
-parse_str($query);       // 无第二参数时同上
-$$key = $value;          // foreach + 可变变量
+extract($_GET);          // registers GET params as variables, can overwrite $admin etc.
+parse_str($query);       // same as above when no second parameter is provided
+$$key = $value;          // foreach + variable variables
 ```
 
 ### Weak Type Comparison
 ```php
-"0e123" == "0e456"       // true (科学计数法都为0)
+"0e123" == "0e456"       // true (both evaluate to 0 in scientific notation)
 "1abc" == 1              // true
-in_array("1abc", [0,1])  // true (无第三参数)
-strcmp([], "password")   // 0 (数组绕过)
+in_array("1abc", [0,1])  // true (no third parameter)
+strcmp([], "password")   // 0 (array bypass)
 ```
 
 ### PHP Pseudo-Protocols
@@ -61,7 +61,7 @@ The following functions can trigger deserialization when accepting the `phar://`
 ### escapeshellarg + escapeshellcmd Combination Vulnerability
 ```php
 $ep = escapeshellarg($param);    // '127.0.0.1'\'' -v -d a=1'
-$eep = escapeshellcmd($ep);      // 单引号逃逸，可注入额外参数
+$eep = escapeshellcmd($ep);      // single quote escape, allows injection of extra arguments
 ```
 
 ### filter_var Bypass
