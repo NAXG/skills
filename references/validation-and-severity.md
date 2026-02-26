@@ -14,7 +14,7 @@ Phase 4c (Cross-Validation) ─────┘
 
 ### Phase 4a: Semgrep Verification
 
-At the start of Phase 4, complete all hit verification from `semgrep-findings.json`. Launched simultaneously with Phase 4c.
+At the start of Phase 4, complete all hit verification from `semgrep-findings.ison`. Launched simultaneously with Phase 4c.
 
 > Semgrep is mandatory in standard/deep modes. `semgrep_status=skipped` is not permitted (blocked at Phase 2 entry).
 

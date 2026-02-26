@@ -14,10 +14,10 @@
 
 **Execution phase**: Phase 4a (Validation — Semgrep Verification)
 
-Purpose: During the unified Phase 4 validation stage, verify all hits in the parsed `semgrep-findings.json`.
+Purpose: During the unified Phase 4 validation stage, verify all hits in the parsed `semgrep-findings.ison`.
 
 Input:
-- `semgrep-findings.json` (produced by Phase 2)
+- `semgrep-findings.ison` (produced by Phase 2)
 - Read code evidence (Read/Grep)
 
 Must output:

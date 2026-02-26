@@ -5,7 +5,7 @@ Parse and summarize Semgrep JSON output.
 Examples:
   python parse_semgrep_baseline.py ../semgrep-baseline.json
   python parse_semgrep_baseline.py ../semgrep-baseline.json --min-severity WARNING
-  python parse_semgrep_baseline.py ../semgrep-baseline.json --format json --output summary.json
+  python parse_semgrep_baseline.py ../semgrep-baseline.json --format ison --output semgrep-findings.ison
 """
 
 from __future__ import annotations
@@ -50,9 +50,9 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--format",
-        choices=["text", "json"],
+        choices=["text", "ison"],
         default="text",
-        help="Output format.",
+        help="Output format. 'ison' produces token-efficient tabular output for LLM consumption.",
     )
     parser.add_argument(
         "--output",
@@ -308,9 +308,42 @@ def infer_scan_root(findings: list[dict[str, Any]]) -> str | None:
     return scan_root
 
 
-def render_json(_summary: dict[str, Any], findings: list[dict[str, Any]], scan_root: str | None) -> str:
+def render_ison(summary: dict[str, Any], findings: list[dict[str, Any]], scan_root: str | None) -> str:
+    import ison_parser
 
-    compact_findings: list[dict[str, Any]] = []
+    blocks: dict[str, Any] = {}
+
+    # Summary (single-row table)
+    blocks["summary"] = [{
+        "input": summary["input"],
+        "total_raw": summary["total_raw"],
+        "total_filtered": summary["total_filtered"],
+        "total_after_dedupe": summary["total_after_dedupe"],
+    }]
+
+    # Severity counts
+    if summary["severity_counts"]:
+        blocks["severity_counts"] = [
+            {"severity": sev, "count": count}
+            for sev, count in summary["severity_counts"].items()
+        ]
+
+    # Top rules
+    if summary["top_rules"]:
+        blocks["top_rules"] = [
+            {"rule": item["rule"], "count": item["count"]}
+            for item in summary["top_rules"]
+        ]
+
+    # Top files
+    if summary["top_files"]:
+        blocks["top_files"] = [
+            {"path": item["path"], "count": item["count"]}
+            for item in summary["top_files"]
+        ]
+
+    # Findings
+    finding_rows: list[dict[str, Any]] = []
     for idx, item in enumerate(findings, start=1):
         path = item["path"]
         if scan_root and os.path.isabs(path):
@@ -320,22 +353,20 @@ def render_json(_summary: dict[str, Any], findings: list[dict[str, Any]], scan_r
                 pass
         path = path.replace("\\", "/")
 
-        compact: dict[str, Any] = {
-            "finding_id": f"SG-{idx:03d}",
+        finding_rows.append({
+            "id": f"SG-{idx:03d}",
             "severity": item["severity"],
             "check_id": item["check_id"],
             "path": path,
             "start_line": item["start_line"],
             "end_line": item["end_line"],
-        }
-        if item["cwe"]:
-            compact["cwe"] = item["cwe"]
-        if item["message"]:
-            compact["message"] = item["message"]
-        compact_findings.append(compact)
+            "cwe": item["cwe"] or "-",
+            "message": item["message"] or "-",
+        })
+    blocks["findings"] = finding_rows
 
-    payload = {"findings": compact_findings}
-    return json.dumps(payload, ensure_ascii=False, indent=2)
+    doc = ison_parser.from_dict(blocks)
+    return ison_parser.dumps(doc, align_columns=True)
 
 
 def main() -> int:
@@ -414,8 +445,8 @@ def main() -> int:
 
     detailed_findings = findings
 
-    if args.format == "json":
-        rendered = render_json(summary, detailed_findings, infer_scan_root(findings))
+    if args.format == "ison":
+        rendered = render_ison(summary, detailed_findings, infer_scan_root(findings))
     else:
         rendered = render_text(summary, detailed_findings, args.max_message_length)
 

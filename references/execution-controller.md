@@ -159,8 +159,8 @@ semgrep scan --config auto --json --output semgrep-baseline.json
 python3 scripts/parse_semgrep_baseline.py semgrep-baseline.json \
   --min-severity WARNING \
   --exclude-third-party \
-  --format json \
-  --output semgrep-findings.json
+  --format ison \
+  --output semgrep-findings.ison
 ```
 
 Script location: `parse_semgrep_baseline.py` is in the `scripts/` directory of this skill.
@@ -171,7 +171,7 @@ Script location: `parse_semgrep_baseline.py` is in the `scripts/` directory of t
 |-----------|---------|-------------|
 | `--min-severity {INFO\|WARNING\|ERROR}` | `INFO` | Minimum severity filter |
 | `--exclude-third-party` | `false` | Exclude vendor/third-party directories and minified files |
-| `--format {text\|json}` | `text` | Output format. `json` for Phase 4a consumption |
+| `--format {text\|ison}` | `text` | Output format. `ison` for Phase 4a consumption (token-efficient tabular format) |
 | `--output <path>` | `-` (stdout) | Output file path |
 | `--include-path-regex <regex>` | empty | Path whitelist filter (repeatable) |
 | `--exclude-path-regex <regex>` | empty | Path blacklist filter (repeatable) |

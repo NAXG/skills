@@ -129,7 +129,7 @@ Phase 4c (cross-validation) ───┘
 ```
 
 **Phase 4a: Semgrep Validation**
-- When `semgrep_status=completed`: archive all `semgrep-findings.json` entries (confirmed/rejected/needs_manual)
+- When `semgrep_status=completed`: archive all `semgrep-findings.ison` entries (confirmed/rejected/needs_manual)
 - When `semgrep_status=partial`: validate only parsed findings; unparsed ones marked `needs_manual`; report notes "Semgrep partially completed"
 
 > `semgrep_status=skipped` is not permitted in standard/deep modes (blocked at Phase 2 entry).
