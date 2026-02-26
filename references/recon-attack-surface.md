@@ -1,16 +1,16 @@
-# Phase 0 Attack Surface Mapping
+# Reconnaissance: Attack Surface Mapping
 
-> Phase 0 is a mandatory sub-step of Phase 1. Goal: build a complete attack surface inventory before entering vulnerability scanning.
+> Reconnaissance is the first step of Phase 1. Goal: build a complete attack surface inventory before entering vulnerability scanning.
 
 ## Output Contract (Mandatory)
 
 ```text
-phase0_inventory:
+recon_inventory:
   modules_inventory: {completed|partial}
   entrypoint_inventory: {completed|partial}
   content_type_inventory: {completed|partial}
   dependency_inventory: {completed|partial}
-  phase0_checklist: {all_passed|partial}
+  recon_checklist: {all_passed|partial}
 ```
 
 ## 0.1 Complete Module/Plugin Inventory
@@ -53,7 +53,7 @@ entrypoint_matrix:
 
 ### Endpoint-Permission Matrix (standard/deep only)
 
-For standard/deep modes, Phase 0 must produce an endpoint-permission matrix as a prerequisite for D3/D9 assessment:
+For standard/deep modes, reconnaissance must produce an endpoint-permission matrix as a prerequisite for D3/D9 assessment:
 
 ```text
 endpoint_permission_matrix:
@@ -139,16 +139,16 @@ all_passed: modules_inventory=completed + entrypoint_inventory=completed + depen
 
 ### Completion Criteria
 
-Three core items met (modules + entrypoint + dependency) → `phase0_checklist: all_passed`
-Otherwise → `phase0_checklist: partial`
+Three core items met (modules + entrypoint + dependency) → `recon_checklist: all_passed`
+Otherwise → `recon_checklist: partial`
 
 If partial:
 - Must not proceed to Phase 2 (but can retry, see below)
 - Clearly state the gap reason in RECON
 
-### Phase 0 Retry Limit
+### Reconnaissance Retry Limit
 
-Phase 0 allows a maximum of 2 retries (3 total attempts). Each retry **must** include:
+Reconnaissance allows a maximum of 2 retries (3 total attempts). Each retry **must** include:
 - **Failure reason**: What specifically failed in the previous attempt
 - **Improvement strategy**: Concrete changes (e.g., different Grep patterns, broader file scope, alternative glob patterns)
 - **Targeted items**: Which specific inventory items will be completed
@@ -156,7 +156,7 @@ Phase 0 allows a maximum of 2 retries (3 total attempts). Each retry **must** in
 
 If still partial:
 - Record the gap reason
-- Downgrade to `phase0_checklist=partial_accepted`, allow continuation but mark the report as "incomplete reconnaissance"
+- Downgrade to `recon_checklist=partial_accepted`, allow continuation but mark the report as "incomplete reconnaissance"
 - **Constraint**: `entrypoint_inventory` must be completed; otherwise downgrade is not allowed (no entry points means the audit is meaningless)
 
 ## Project Type Adaptation
@@ -174,11 +174,11 @@ Handling:
 ### Minimal Projects (<500 LOC)
 
 - Use standard mode with 1 Agent
-- Phase 0 simplified to file list + dependency list only
+- Reconnaissance simplified to file list + dependency list only
 - modules_inventory and content_type_inventory automatically marked as completed
 
 ### Multi-Language Projects
 
-- When Phase 0 identifies multiple languages, annotate language proportions in RECON output
+- When reconnaissance identifies multiple languages, annotate language proportions in RECON output
 - Plan Agent splitting strategy along language boundaries
 - Each language's corresponding Agent loads its own language module

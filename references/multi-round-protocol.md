@@ -67,20 +67,6 @@ Convergence prevents infinite audit loops while ensuring quality: at some point,
 - Do not skip Phase 3/4 citing "insufficient coverage"
 - Do not converge directly from Phase 2 to Report
 
-## Full Agent Failure Recovery
-
-When all Agents have FAILED/TRUNCATED:
-1. Do not give up immediately
-2. Split dimensions finer and restart 1-2 reduced-scope Agents (halve dimensions + halve max_turns)
-3. If still failing → mark report as "audit incomplete," output partial results collected so far
-
-## Coverage Deadlock Resolution
-
-When standard mode has reached the 2-round limit but D1-D3 still has ❌:
-- Allow 1 emergency Agent round (targeting only ❌ D1-D3, max_turns=15)
-- Or downgrade to ⚠️ and mark as "not met" in report
-- Avoid infinite loops
-
 ---
 
 ## Cross-Round State Transfer Protocol

@@ -28,8 +28,8 @@ Must output:
 ```
 
 Special rules:
-- Very small projects (<500 LOC): use standard mode with 1 Agent, simplified Phase 0
-- Mixed-language projects: when Phase 0 identifies multiple languages, record them; Agent partitioning prioritizes language boundaries
+- Very small projects (<500 LOC): use standard mode with 1 Agent, simplified reconnaissance
+- Mixed-language projects: when reconnaissance identifies multiple languages, record them; Agent partitioning prioritizes language boundaries
 
 ## Step 2: Document Loading (Mandatory by Mode)
 
@@ -37,7 +37,7 @@ Special rules:
 
 | Mode | Documents |
 |------|-----------|
-| `standard` | execution-controller.md + agent-contract.md + phase0-attack-surface.md + coverage-matrix.md |
+| `standard` | execution-controller.md + agent-contract.md + recon-attack-surface.md + coverage-matrix.md |
 | `deep` | standard baseline + agent-output-recovery.md |
 
 **Deferred loading** (after [PLAN_ACK]):
@@ -67,7 +67,7 @@ Must output:
 
 ## Step 3: Reconnaissance
 
-Phase 0 is an embedded sub-phase of Phase 1 (does not produce an independent [PHASE] marker) and must complete the phase0_checklist as a prerequisite for Phase 1 completion.
+Reconnaissance is the first step of Phase 1 (does not produce an independent [PHASE] marker) and must complete the recon_checklist as a prerequisite for Phase 1 completion.
 
 ### Completion Gate Tiers
 
@@ -92,11 +92,11 @@ Tech stack: {language, framework, version}
 Project type: {CMS|Finance|SaaS|Data Platform|Identity|IoT|General Web|Library}
 Entry points: {Controller/Router/Handler count}
 Key modules: {list}
-phase0_inventory: {modules_inventory, entrypoint_inventory, dependency_inventory, content_type_inventory(optional)}
-phase0_checklist: {all_passed|partial}
+recon_inventory: {modules_inventory, entrypoint_inventory, dependency_inventory, content_type_inventory(optional)}
+recon_checklist: {all_passed|partial}
 ```
 
-For detailed reconnaissance steps, see [Phase 0 Attack Surface](phase0-attack-surface.md).
+For detailed reconnaissance steps, see [Reconnaissance: Attack Surface](recon-attack-surface.md).
 
 ## Step 4: Execution Plan (with Gate Validation)
 
@@ -108,7 +108,7 @@ Must output:
 [PLAN]
 Mode: {mode}
 Tech stack: {from RECON}
-phase0_checklist: {from RECON}
+recon_checklist: {from RECON}
 Scan dimensions: {D1-D10}
 Agent plan: {dimensions per Agent + max_turns}
 Round planning: {R1 -> R2(as needed) -> R3(as needed)}
@@ -129,7 +129,7 @@ After [PLAN_ACK], the main thread internally validates the following conditions;
 |---|------------|-----------|------------------|
 | 1 | Mode confirmed | [MODE] has been set | Abort |
 | 2 | Documents loaded | [LOADED] includes mode-required documents | Supplemental loading |
-| 3 | Reconnaissance complete | phase0_checklist meets mode requirements (standard/deep=all_passed or partial_accepted) | Return to Phase 0 |
+| 3 | Reconnaissance complete | recon_checklist meets mode requirements (standard/deep=all_passed or partial_accepted) | Return to reconnaissance |
 | 4 | Plan confirmed | [PLAN_ACK] == confirmed | Wait for user confirmation |
 | 5 | Semgrep available | `semgrep --version` succeeds | [HALT] — prompt user to install semgrep |
 
@@ -210,7 +210,7 @@ When [HALT] is triggered, instead of "blocking everything," execute the correspo
 
 | Trigger Condition | Recovery Strategy |
 |-------------------|-------------------|
-| Phase 0 incomplete | Supplement missing items and re-evaluate (Phase 0 max 2 retries, 3 total attempts). Each retry **must** include: (a) failure reason from previous attempt, (b) specific improvement strategy (e.g., different Grep patterns, broader file scope), (c) targeted items to complete. Blind re-execution without improvement is prohibited |
+| Reconnaissance incomplete | Supplement missing items and re-evaluate (reconnaissance max 2 retries, 3 total attempts). Each retry **must** include: (a) failure reason from previous attempt, (b) specific improvement strategy (e.g., different Grep patterns, broader file scope), (c) targeted items to complete. Blind re-execution without improvement is prohibited |
 | D1-D3 is ❌ | Add targeted Agents and re-evaluate |
 | Agent failure | Retry once, then downgrade to ⚠️ and continue |
 | Phase 3/4 partial | Record the gap; may continue but report marked "incomplete". Phase 3 partial → report includes "**Deep Dive Incomplete**" watermark + Critical findings confidence capped at `medium`. Phase 4 partial → unvalidated Critical/High auto-downgraded to Medium + `needs_manual` |
@@ -260,9 +260,9 @@ Handling:
 ### Very Small Projects (<500 LOC)
 
 - Use standard mode with 1 Agent
-- Phase 0 simplified to file list + dependency list only
+- Reconnaissance simplified to file list + dependency list only
 
 ### Mixed-Language Projects
 
-- When Phase 0 identifies multiple languages, each language's corresponding Agent loads its own language module
+- When reconnaissance identifies multiple languages, each language's corresponding Agent loads its own language module
 - Agent partitioning prioritizes language boundaries over dimensions

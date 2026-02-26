@@ -68,7 +68,7 @@ Priority = (Attack Surface Size × Potential Impact) / Exploitation Complexity
 
 | Mode | Upfront | After [PLAN_ACK] | On-Demand |
 |------|---------|-------------------|-----------|
-| `standard` | execution-controller.md + agent-contract.md + phase0-attack-surface.md + coverage-matrix.md | phase-definitions.md + multi-round-protocol.md | validation-agent-contracts.md (Phase 4) |
+| `standard` | execution-controller.md + agent-contract.md + recon-attack-surface.md + coverage-matrix.md | phase-definitions.md + multi-round-protocol.md | validation-agent-contracts.md (Phase 4) |
 | `deep` | standard baseline + agent-output-recovery.md | phase-definitions.md + multi-round-protocol.md | validation-agent-contracts.md (Phase 4) |
 
 For execution flow, gates, phase transitions, report admission, and other rules, see [execution-controller.md](references/execution-controller.md) (authoritative source for execution flow; in case of conflict with other documents, this file takes precedence).
@@ -105,7 +105,7 @@ For execution flow, gates, phase transitions, report admission, and other rules,
 
 | Document | Responsibility | Required for Mode |
 |----------|---------------|-------------------|
-| [phase0-attack-surface.md](references/phase0-attack-surface.md) | Phase 0 attack surface mapping | All modes |
+| [recon-attack-surface.md](references/recon-attack-surface.md) | Reconnaissance attack surface mapping | All modes |
 | [pattern-library-routing.md](references/pattern-library-routing.md) | Language/framework/domain module loading routing | All modes |
 | [data-flow-methodology.md](references/data-flow-methodology.md) | Source→Sink data flow methodology | All modes (referenced by language modules) |
 

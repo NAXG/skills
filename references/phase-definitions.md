@@ -240,7 +240,7 @@ Hard rules (standard/deep):
 - **QUICK_EQUIVALENT tag**: When Phase 3/4 is skipped in standard/deep mode, the report header must include `⚠️ QUICK_EQUIVALENT: This report was generated without Deep Dive and Validation phases. Findings have not been independently verified.`
 
 Minimum phase transition gates:
-- `Phase 1 → Phase 2`: phase0_checklist meets mode requirements
+- `Phase 1 → Phase 2`: recon_checklist meets mode requirements
 - `Phase 2 → Phase 2.5`: All Agents completed or timeout-handled, **and** Semgrep completed (completed/partial)
 - `Phase 2.5 → Phase 3`:
   * Coverage assessed
