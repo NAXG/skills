@@ -19,15 +19,14 @@
 
 ## Agent Count
 
-- `quick`: Fixed 1-3 (1 for very small projects, otherwise 2-3)
 - `standard/deep`: Allocated by project scale
+  - Very small (<500 LOC): 1
   - Small (<10K LOC): 2-3
   - Medium (10K-100K LOC): 3-5
   - Large (>100K LOC): 5-9
 
 ## Round Limits
 
-- `quick`: max 1 round
 - `standard`: max 2 rounds
 - `deep`: max 3 rounds
 
@@ -140,3 +139,43 @@ The round controller validates three core fields before injection:
 Optional field validation (when present):
 - GAPS is consistent with COVERED (GAPS dimensions are ⚠️ or ❌ in COVERED)
 - GREP_DONE ≤30 entries (oldest entries truncated if exceeded)
+
+---
+
+## Deep Mode Extensions
+
+> Applies to deep mode only. Extends the round management protocol with agent lifecycle tracking and a structured evaluation rule.
+
+### agent_registry Data Structure
+
+Deep mode maintains an `agent_registry` to track the lifecycle of every Agent across rounds:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| agent_id | string | Agent unique identifier (e.g., "agent-r1-01") |
+| task_id | string | Corresponding Task ID |
+| status | enum | PENDING \| RUNNING \| COMPLETED \| FAILED \| TRUNCATED |
+| round | number | Round number |
+| assigned_dimensions | string[] | Assigned audit dimensions |
+| output_status | enum | COMPLETE \| TRUNCATED \| MISSING |
+| findings_count | number | Number of findings produced |
+| started_at | string | Start timestamp |
+| completed_at | string \| null | Completion timestamp |
+
+Rules:
+- Only query task_ids present in agent_registry; not_found is treated as invalid result
+- All Agents must complete or be marked as timed out, and Semgrep must complete (completed/partial), before entering evaluation
+- If any Agent shows failed/sibling_error/not_found: retry once first; if still failing, convert to timeout and downgrade corresponding dimensions to ⚠️
+
+### Three-Question Evaluation Rule
+
+At each ROUND_N_EVALUATION (after output truncation detection and track-based coverage assessment), apply this rule to decide whether another round is needed:
+
+1. Are there planned but unsearched areas remaining?
+2. Have all entry points been traced to Sinks?
+3. Do high-risk findings have potential cross-module combinations?
+
+Decision logic:
+- If **any** of the three questions is YES → launch NEXT_ROUND
+- If coverage meets threshold and all three are NO → proceed to Phase 3 (Deep Dive)
+- Cannot jump directly from evaluation to Report; must follow the mandatory path: Deep Dive → Validation → Report

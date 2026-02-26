@@ -10,7 +10,7 @@ phase0_inventory:
   entrypoint_inventory: {completed|partial}
   content_type_inventory: {completed|partial}
   dependency_inventory: {completed|partial}
-  phase0_checklist: {quick_passed|all_passed|partial}
+  phase0_checklist: {all_passed|partial}
 ```
 
 ## 0.1 Complete Module/Plugin Inventory
@@ -132,17 +132,14 @@ dependency_inventory:
 ### Gate Levels
 
 ```text
-quick_passed: entrypoint_inventory=completed + dependency_inventory=completed
 all_passed: modules_inventory=completed + entrypoint_inventory=completed + dependency_inventory=completed
 ```
 
-- `quick_passed`: used only in quick mode, proceed to Phase 2 once met
-- `all_passed`: used in standard/deep modes, three core items (modules + entrypoint + dependency) must be met before proceeding to Phase 2
+- `all_passed`: three core items (modules + entrypoint + dependency) must be met before proceeding to Phase 2
 
 ### Completion Criteria
 
 Three core items met (modules + entrypoint + dependency) → `phase0_checklist: all_passed`
-Only entrypoint + dependency met → `phase0_checklist: quick_passed`
 Otherwise → `phase0_checklist: partial`
 
 If partial:
@@ -176,7 +173,7 @@ Handling:
 
 ### Minimal Projects (<500 LOC)
 
-- Force quick mode
+- Use standard mode with 1 Agent
 - Phase 0 simplified to file list + dependency list only
 - modules_inventory and content_type_inventory automatically marked as completed
 

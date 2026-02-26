@@ -11,7 +11,6 @@
 claude skill add gh:NAXG/skills --skill code-audit
 
 # 使用
-/code-audit quick         # CI/CD、小型项目
 /code-audit standard      # 完整 OWASP 审计
 /code-audit deep          # 关键系统，多轮迭代
 ```
@@ -31,7 +30,7 @@ Claude: [MODE] deep
 ## 系统要求
 
 - **Python 3**（必需）
-- **semgrep**（standard/deep 模式必需——quick 模式可不安装）
+- **semgrep**（必需）
 
 ## 覆盖范围
 
@@ -74,7 +73,6 @@ SQL 注入、命令注入、XSS、认证、授权、文件操作、SSRF、反序
 
 | 模式 | 轮次 | 阶段 | Agent 数量 |
 |------|------|------|-----------|
-| `quick` | 1 | 侦察 → 扫描 → 报告 | 1–3 |
 | `standard` | 1–2 | 侦察 → 扫描 → 合并 → 深挖 → 验证 → 报告 | 按规模分配 |
 | `deep` | 2–3 | 完整流水线，多轮迭代 + 收敛控制 | 按规模分配 |
 
@@ -94,12 +92,12 @@ Phase 2: 扫描（并行 Agent）
   └─ Agent N: ...                      [按项目规模分配]
 
 Phase 2.5: 合并
-  ├─ 输出收集 & 去重
+  ├─ 输出收集 & 格式验证
   └─ 预验证统计
 
 Phase 3: 深挖 (standard/deep)
-  ├─ 跨 Agent 攻击链合成
-  └─ 更深层数据流分析
+  ├─ 补全未完成的数据流
+  └─ 跨 Agent 攻击链合成
 
 Phase 4: 验证 (standard/deep)
   ├─ Semgrep 交叉验证
@@ -127,17 +125,16 @@ Phase 5: 报告
 
 ## 报告输出
 
-| 章节 | quick | standard | deep |
-|------|:-----:|:--------:|:----:|
-| 执行摘要 | ✓ | ✓ | ✓ |
-| 发现统计 | ✓ | ✓ | ✓ |
-| 覆盖矩阵 (D1–D10) | ✓ | ✓ | ✓ |
-| 漏洞详情 + PoC | ✓ | ✓ | ✓ |
-| 审计局限性 | ✓ | ✓ | ✓ |
-| 执行门控证据 | | ✓ | ✓ |
-| 攻击链分析 | | ✓ | ✓ |
-| 攻击路径评分 | | ✓ | ✓ |
-| 攻击时间线模拟 | | | ✓ |
+| 章节 | standard | deep |
+|------|:--------:|:----:|
+| 执行摘要 | ✓ | ✓ |
+| 发现统计 | ✓ | ✓ |
+| 覆盖矩阵 (D1–D10) | ✓ | ✓ |
+| 漏洞详情 + PoC | ✓ | ✓ |
+| 审计局限性 | ✓ | ✓ |
+| Semgrep 验证证据 | ✓ | ✓ |
+| 攻击链分析 | ✓ | ✓ |
+| 攻击路径评分 | ✓ | ✓ |
 
 ## 项目结构
 
@@ -146,7 +143,7 @@ code-audit/
 ├── SKILL.md                     # Skill 入口
 ├── scripts/
 │   └── parse_semgrep_baseline.py
-├── references/          (10)    # 执行控制与方法论
+├── references/          (12)    # 执行控制与方法论
 ├── languages/            (9)    # 语言专项审计模式
 ├── frameworks/          (13)    # 框架专项审计模式
 └── domains/             (12)    # 安全域模块

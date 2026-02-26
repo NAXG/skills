@@ -84,7 +84,7 @@ Determines validation strategy based on the severity and pre-validation status o
 | 3 | Precondition feasibility | Attacker can reach the trigger point (authentication/permission/network conditions) |
 | 4 | Impact scope | Maximum damage after exploitation is quantifiable |
 
-All four steps pass: vulnerability confirmed. Any step fails: downgrade or exclude.
+All four steps pass: vulnerability confirmed (verdict: `confirmed`). Any step fails: verdict is `downgraded` (partial failure) or `rejected` (fundamental failure). **Validation Agents do not assign or modify severity levels** — they output only a verdict (`confirmed | downgraded | rejected`) and their four-step assessment results. A `downgraded` verdict means the validation found issues (e.g., a step failed) that should reduce confidence; the actual severity recalculation happens in Phase 4b.
 
 **Main Thread Spot Check Rules** (for Critical/High findings with `validation=pass`):
 - Randomly sample >= 30% of pass findings (minimum: `min(ceil(30%), 3)` — at least 3 findings, or all if fewer than 3 exist)
@@ -98,23 +98,24 @@ All four steps pass: vulnerability confirmed. Any step fails: downgrade or exclu
 
 ### Phase 4b: Merge Deduplication + Severity Calibration (Final Step)
 
-Phase 4b executes after Phase 4a and Phase 4c are both complete.
+Phase 4b executes after Phase 4a and Phase 4c are both complete. **Phase 4b is the sole authority for final severity assignment.** Neither Validation Agents nor any other phase assign final severity levels.
 
 **Input**:
 1. Phase 4a Semgrep verification results (confirmed/rejected/needs_manual)
-2. Phase 4c Validation Agent `===VALIDATION_RESULT===` outputs
+2. Phase 4c Validation Agent `===VALIDATION_RESULT===` outputs (verdicts + four-step results — no severity changes)
 3. Main thread spot check results
+4. Original Agent severity levels from Phase 2/2.5
 
 **Execution Steps**:
 1. Collect all Validation Agent outputs
-2. Apply validation conclusions: confirmed retained, downgraded update severity, rejected removed
+2. Apply validation verdicts: retain `confirmed` findings, flag `downgraded` findings for calibration adjustment, remove `rejected` findings
 3. Merge Semgrep confirmed findings with business Agent findings
-4. Apply [report-template.md](report-template.md) "Cross-Source Deduplication Rules" for deduplication
-5. Execute severity secondary calibration (see "Severity Secondary Calibration" section below)
-6. Produce the final deduplicated findings list
+4. Apply cross-source deduplication rules (see [phase-definitions.md](phase-definitions.md) §Phase 4b for the authoritative dedup rules)
+5. Execute severity secondary calibration on ALL remaining findings (see "Severity Secondary Calibration" section below), using: (a) original Agent severity, (b) Validation Agent verdict + four-step assessment results, (c) the scoring formula
+6. Produce the final deduplicated findings list with authoritative severity levels
 
 **Constraints**:
-- Deduplication is performed at this stage, no longer deferred to the report stage
+- Phase 4b is the single, authoritative dedup pass — no other phase performs deduplication
 - The deduplicated findings list serves as the direct input for Phase 5 report
 
 ---

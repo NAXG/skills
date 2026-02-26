@@ -13,7 +13,6 @@ Inspired by [3stoneBrother/code-audit](https://github.com/3stoneBrother/code-aud
 claude skill add gh:NAXG/skills --skill code-audit
 
 # Run
-/code-audit quick         # CI/CD, small projects
 /code-audit standard      # Full OWASP audit
 /code-audit deep          # Critical systems, multi-round
 ```
@@ -33,7 +32,7 @@ Claude: [MODE] deep
 ## Requirements
 
 - **Python 3** (required)
-- **semgrep** (required for standard/deep modes — quick mode can proceed without it)
+- **semgrep** (required)
 
 ## What It Covers
 
@@ -76,7 +75,6 @@ SQL Injection, Command Injection, XSS, Authentication, Authorization, File Opera
 
 | Mode | Rounds | Phases | Agents |
 |------|--------|--------|--------|
-| `quick` | 1 | Recon → Hunt → Report | 1–3 |
 | `standard` | 1–2 | Recon → Hunt → Merge → Deep Dive → Validation → Report | By scale |
 | `deep` | 2–3 | Full pipeline, multi-round with convergence control | By scale |
 
@@ -96,12 +94,12 @@ Phase 2: Hunt (parallel agents)
   └─ Agent N: ...                      [by project scale]
 
 Phase 2.5: Merge
-  ├─ Output collection & deduplication
+  ├─ Output collection & format validation
   └─ Pre-validation statistics
 
 Phase 3: Deep Dive (standard/deep)
-  ├─ Cross-agent attack chain synthesis
-  └─ Deeper data flow analysis
+  ├─ Incomplete data flow completion
+  └─ Cross-agent attack chain synthesis
 
 Phase 4: Validation (standard/deep)
   ├─ Semgrep cross-validation
@@ -129,17 +127,16 @@ Every vulnerability is traced through the same model:
 
 ## Report Output
 
-| Section | quick | standard | deep |
-|---------|:-----:|:--------:|:----:|
-| Executive Summary | ✓ | ✓ | ✓ |
-| Finding Statistics | ✓ | ✓ | ✓ |
-| Coverage Matrix (D1–D10) | ✓ | ✓ | ✓ |
-| Vulnerability Details + PoC | ✓ | ✓ | ✓ |
-| Audit Limitations | ✓ | ✓ | ✓ |
-| Execution Gate Evidence | | ✓ | ✓ |
-| Attack Chain Analysis | | ✓ | ✓ |
-| Attack Path Scoring | | ✓ | ✓ |
-| Attack Timeline Simulation | | | ✓ |
+| Section | standard | deep |
+|---------|:--------:|:----:|
+| Executive Summary | ✓ | ✓ |
+| Finding Statistics | ✓ | ✓ |
+| Coverage Matrix (D1–D10) | ✓ | ✓ |
+| Vulnerability Details + PoC | ✓ | ✓ |
+| Audit Limitations | ✓ | ✓ |
+| Semgrep Verification Evidence | ✓ | ✓ |
+| Attack Chain Analysis | ✓ | ✓ |
+| Attack Path Scoring | ✓ | ✓ |
 
 ## Project Structure
 
@@ -148,7 +145,7 @@ code-audit/
 ├── SKILL.md                     # Skill entry point
 ├── scripts/
 │   └── parse_semgrep_baseline.py
-├── references/          (10)    # Execution control & methodology
+├── references/          (12)    # Execution control & methodology
 ├── languages/            (9)    # Language-specific audit patterns
 ├── frameworks/          (13)    # Framework-specific audit patterns
 └── domains/             (12)    # Security domain modules

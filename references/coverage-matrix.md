@@ -278,26 +278,9 @@ crud_types: {n} resource types with CRUD consistency verified
 - `❌`: Not checked
 - `N/A`: Phase 0 did not detect related configuration + Agent Grep searches returned zero hits
 
-### Sink Fan-out Rate (Prevent Shallow Analysis)
-
-The fan-out rate catches a common failure mode: an Agent runs many Grep searches, gets dozens of hits, but only actually reads and traces a handful of them. Without this check, the Agent could claim ✅ coverage based on search volume alone while leaving most matches unexamined.
-
-```text
-Fan-out rate = files with traced data flows / files with Grep hits
-```
-
-- Grep hits >= 10 and fan-out rate < 30% → downgrade that dimension to `⚠️`
-
-**Data collection mechanism**: Agents must report the following in their `===AGENT_RESULT===` output for each Sink-driven dimension (D1/D4/D5/D6):
-```text
-fan_out: D1={traced_files}/{grep_hit_files} D4={traced_files}/{grep_hit_files} ...
-```
-The main thread calculates fan-out rates during Phase 2.5 merge. Missing fan-out data → dimension cannot be marked `✅` (capped at `⚠️`).
-
 ### Mode Thresholds
 
 | Mode | Coverage Threshold | Additional Conditions |
 |------|-------------------|----------------------|
-| quick | ≥ 8/(10-N/A count) dimensions ✅ | None |
 | standard | ≥ 8/(10-N/A count) dimensions ✅ | D1-D3 must all be ✅ |
 | deep | ≥ 9/(10-N/A count) dimensions ✅ | D1-D3 must all be ✅ |

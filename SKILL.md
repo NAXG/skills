@@ -1,7 +1,7 @@
 ---
 name: code-audit
-description: "White-box code security audit — finds vulnerabilities (SQLi, XSS, RCE, SSRF, IDOR, deserialization, etc.), reviews authentication/authorization, traces Source-to-Sink data flows, and checks OWASP Top 10 coverage. Use when asked to find vulnerabilities, do security review, penetration-test prep, or audit code for security issues. Modes: quick (fast scan), standard (full OWASP), deep (multi-round with attack chains)."
-argument-hint: "[mode] — modes: quick|standard|deep"
+description: "White-box code security audit — finds vulnerabilities (SQLi, XSS, RCE, SSRF, IDOR, deserialization, etc.), reviews authentication/authorization, traces Source-to-Sink data flows, and checks OWASP Top 10 coverage. Use when asked to find vulnerabilities, do security review, penetration-test prep, or audit code for security issues. Modes: standard (full OWASP), deep (multi-round with attack chains)."
+argument-hint: "[mode] — modes: standard|deep"
 allowed-tools: Read, Grep, Glob, Bash, Task, Write
 recommended-model: "opus"
 ---
@@ -10,9 +10,9 @@ recommended-model: "opus"
 
 > White-box Code Security Audit System
 >
-> **Version**: 5.2.0 | **Updated**: 2026-02-17
+> **Version**: 6.0.0 | **Updated**: 2026-02-26
 >
-> **System Requirements**: Python 3 (required), semgrep (required for standard/deep modes; quick mode can proceed without it)
+> **System Requirements**: Python 3 (required), semgrep (required)
 >
 > **Mindset: Attacker's perspective.** During the audit, assume every line of code is exploitable until proven otherwise. Don't "defend the developer" — instead, "find paths for the attacker."
 
@@ -61,7 +61,6 @@ Priority = (Attack Surface Size × Potential Impact) / Exploitation Complexity
 
 | Mode | Use Case | Rounds | Phase Sequence | Recon Gate | Agent Count | Coverage Threshold | D1-D3 Requirement | Report |
 |------|----------|--------|----------------|------------|-------------|--------------------|--------------------|--------|
-| `quick` | CI/CD, small projects | 1 | 1→2→5 | quick_passed | 1-3 | ≥8/10 | Not enforced | Compact |
 | `standard` | Regular audit | 1-2 | 1→2→2.5→3→4→5 | all_passed | By scale | ≥8/10 | All ✅ | Full |
 | `deep` | Critical systems | 2-3 | 1→2→2.5→3→4→5 (multi-round) | all_passed | By scale | ≥9/10 | All ✅ | Full |
 
@@ -69,9 +68,8 @@ Priority = (Attack Surface Size × Potential Impact) / Exploitation Complexity
 
 | Mode | Upfront | After [PLAN_ACK] | On-Demand |
 |------|---------|-------------------|-----------|
-| `quick` | execution-controller.md + agent-contract.md + phase0-attack-surface.md | (none) | (none) |
-| `standard` | quick baseline + coverage-matrix.md | phase-definitions.md + multi-round-protocol.md | validation-agent-contracts.md (Phase 4) |
-| `deep` | standard baseline + agent-output-recovery.md | phase-definitions.md + multi-round-protocol.md + deep-mode-state-machine.md | validation-agent-contracts.md (Phase 4) |
+| `standard` | execution-controller.md + agent-contract.md + phase0-attack-surface.md + coverage-matrix.md | phase-definitions.md + multi-round-protocol.md | validation-agent-contracts.md (Phase 4) |
+| `deep` | standard baseline + agent-output-recovery.md | phase-definitions.md + multi-round-protocol.md | validation-agent-contracts.md (Phase 4) |
 
 For execution flow, gates, phase transitions, report admission, and other rules, see [execution-controller.md](references/execution-controller.md) (authoritative source for execution flow; in case of conflict with other documents, this file takes precedence).
 
@@ -85,8 +83,7 @@ For execution flow, gates, phase transitions, report admission, and other rules,
 |----------|---------------|---------|
 | [execution-controller.md](references/execution-controller.md) | Execution order, gates, Semgrep timing, `can_report()`, coverage anti-inflation, special project types | Upfront (all modes) |
 | [phase-definitions.md](references/phase-definitions.md) | Phase execution sequence, [PHASE] markers, Phase 2/2.5/3/4/5 definitions, no-skip rules, phase transition gates | After [PLAN_ACK] (standard/deep) |
-| [multi-round-protocol.md](references/multi-round-protocol.md) | Agent count allocation, round limits, turns budget, convergence rules, GAPS counting, cross-round state transfer | After [PLAN_ACK] (standard/deep) |
-| [deep-mode-state-machine.md](references/deep-mode-state-machine.md) | Deep mode state diagram, ROUND_N_RUNNING/EVALUATION, agent_registry | After [PLAN_ACK] (deep only) |
+| [multi-round-protocol.md](references/multi-round-protocol.md) | Agent count allocation, round limits, turns budget, convergence rules, GAPS counting, cross-round state transfer, deep mode extensions (agent_registry, three-question evaluation) | After [PLAN_ACK] (standard/deep) |
 
 ### 3.2 Coverage & Validation
 
@@ -102,7 +99,7 @@ For execution flow, gates, phase transitions, report admission, and other rules,
 | [agent-contract.md](references/agent-contract.md) | Agent contract, output templates, truncation handling | Upfront (all modes) |
 | [validation-agent-contracts.md](references/validation-agent-contracts.md) | Phase 4a semgrep-verify + Phase 4c validate-* agent contracts | On-demand at Phase 4 (standard/deep) |
 | [agent-output-recovery.md](references/agent-output-recovery.md) | Truncation detection and recovery process | Upfront (deep) |
-| [report-template.md](references/report-template.md) | Report template, gate evidence, deduplication rules | All modes |
+| [report-template.md](references/report-template.md) | Report template, section structure, completeness checklist | All modes |
 
 ### 3.4 Reconnaissance & Pattern Library
 
@@ -110,7 +107,6 @@ For execution flow, gates, phase transitions, report admission, and other rules,
 |----------|---------------|-------------------|
 | [phase0-attack-surface.md](references/phase0-attack-surface.md) | Phase 0 attack surface mapping | All modes |
 | [pattern-library-routing.md](references/pattern-library-routing.md) | Language/framework/domain module loading routing | All modes |
-| [semgrep-playbook.md](references/semgrep-playbook.md) | Semgrep execution flow | All modes |
 | [data-flow-methodology.md](references/data-flow-methodology.md) | Source→Sink data flow methodology | All modes (referenced by language modules) |
 
 ### 3.5 Framework Modules

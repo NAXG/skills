@@ -20,7 +20,6 @@
 
 | Mode | Phase Sequence | Description |
 |------|---------------|-------------|
-| quick | Phase 1 → Phase 2 → Phase 5 | Skips Deep Dive and Validation |
 | standard | Phase 1 → Phase 2 → Phase 2.5 → Phase 3 → Phase 4 → Phase 5 | Full flow |
 | deep | Phase 1 → Phase 2 → Phase 2.5 → Phase 3 → Phase 4 → Phase 5 (multi-round) | Multi-round iteration + strict convergence |
 
@@ -35,24 +34,17 @@ Output a unified marker after each phase completes:
 Examples:
 ```text
 [PHASE] phase:2 status:completed next:2.5 evidence:agents=3,findings=12,coverage=7/10
-[PHASE] phase:2.5 status:completed next:3 evidence:merged_findings=10,dedup_removed=2,pre_validated=6,needs_validation=4
+[PHASE] phase:2.5 status:completed next:3 evidence:merged_findings=10,pre_validated=6,needs_validation=4
 [PHASE] phase:3 status:completed next:4 evidence:deep_files=5,new_findings=3
 [PHASE] phase:4 status:completed next:5 evidence:confirmed=8,rejected=2,needs_manual=1,validation_agents=2,pre_validated=5
 ```
 
-Quick mode examples:
-```text
-[PHASE] phase:1 status:completed next:2 evidence:phase0=quick_passed,handlers=12
-[PHASE] phase:2 status:completed next:report evidence:agents=2,findings=8,coverage=8/10
-```
-
 ## Phase 2: Hunt (Agent Scanning)
 
-- Launch business Agents (D1-D10 dimension scanning) and Semgrep baseline scan **in parallel** (standard/deep), or Agents only (quick)
-- All Agents must complete or be marked as timed out, **and** Semgrep must complete (completed/partial), before proceeding to Phase 2.5 (standard/deep) or Phase 5 (quick)
-- `quick`: 1 round, coverage-first
+- Launch business Agents (D1-D10 dimension scanning) and Semgrep baseline scan **in parallel**
+- All Agents must complete or be marked as timed out, **and** Semgrep must complete (completed/partial), before proceeding to Phase 2.5
 - `standard`: 1-2 rounds, balance between coverage and depth
-- `deep`: 2-3 rounds, strictly follow the [Deep Mode State Machine](deep-mode-state-machine.md)
+- `deep`: 2-3 rounds, strictly follow the [Deep Mode Extensions](multi-round-protocol.md#deep-mode-extensions)
 
 ## Phase 2.5: Agent Output Merging (standard/deep)
 
@@ -73,7 +65,6 @@ After all Agents complete and before coverage assessment, perform output merging
 ```text
 ===MERGE_RESULT===
 merged_findings_count: {n}
-dedup_removed_count: {n}
 pre_validated_count: {n}
 needs_validation_count: {n}
 coverage_summary: D1={status},...,D10={status}
@@ -82,10 +73,6 @@ hotspots_count: {n}
 ```
 
 **Non-conforming output handling**: When Agent output lacks the `[FNNN]` structured format, it is treated as truncated output and handled via the recovery flow. No free-form parsing is attempted.
-
-**Same Root Cause operational definition**:
-- **Primary criterion**: Same file + line range (±5 lines) = same root cause → merge, retain highest severity
-- Same Source parameter affects ≥2 different Sinks = same root cause → merge, retain highest severity
 
 Merged results serve as input for Phase 3/4.
 
@@ -99,8 +86,8 @@ Phase 3 focuses on in-depth analysis of discovered findings.
 
 **Substantive constraints (prevent step-skipping)**:
 - **Hotspot-driven targeting**: Must cover all HOTSPOTS flagged by Phase 2/2.5. If no hotspots exist, must trace the complete cross-file data flow for every Critical/High finding in D1-D3
-- **Depth metric**: depth = number of method boundaries crossed in a call chain. Phase 3 must produce at least 1 flow with depth > the deepest flow in Phase 2 for the same dimension
-- **Evidence depth requirement**: Phase 3 must produce more complete data flow evidence for each Critical/High finding than Phase 2 provided (e.g., deeper call chain, additional intermediate transforms, cross-file flow completion)
+- **Flow completion**: Phase 3 prioritizes completing incomplete data flows from Phase 2 — flows with `chain_status: broken`, incomplete cross-file paths, or missing intermediate transforms. If all Phase 2 flows are already complete, Phase 3 focuses on attack chain synthesis instead of forcing artificially deeper traces
+- **Evidence completeness requirement**: Every Critical/High finding entering Phase 4 must have a complete Source→Sink data flow. Phase 3 is responsible for filling any gaps left by Phase 2
 - If not met, Phase 3 is marked partial → report must include a "**Deep Dive Incomplete**" watermark, and all Critical findings have confidence capped at `medium`
 
 **Cross-Agent attack chain synthesis** (mandatory when Critical/High ≥ 3; skipped when Critical/High ≤ 2):
@@ -133,7 +120,7 @@ otherwise → full 4a + 4c parallel → 4b pipeline
 
 Phase 4 is split into 3 sub-steps, where **4a and 4c can run in parallel, and 4b serves as the final merge step**:
 
-**Timeout handling**: When a Phase 4 sub-step times out, fall back to main thread validation for its remaining work. Timeout events are recorded in the Phase Completion Ledger.
+**Timeout handling**: When a Phase 4 sub-step times out, fall back to main thread validation for its remaining work. Timeout events are recorded in Audit Limitations.
 
 ```text
 Phase 4a (Semgrep validation) ─┐
@@ -161,7 +148,7 @@ else:
 
 **Phase 4c: Multi-Agent Cross-Validation**
 
-Route based on pre-validation status to determine validation strategy (see validation-and-severity.md for details).
+Route based on pre-validation status to determine validation strategy (see validation-and-severity.md for details). Validation Agents output verdicts (`confirmed | downgraded | rejected`) and four-step assessment results only — they do not assign or modify severity levels. Severity is determined solely by Phase 4b.
 
 **Phase 4c Agent count decision**:
 ```text
@@ -197,20 +184,34 @@ if needs_batch_validation > 10:
 
 **Phase 4b: Merge Dedup + Severity Calibration (Final Step)**
 
-Phase 4b executes after both 4a and 4c are complete.
+Phase 4b executes after both 4a and 4c are complete. This is the **single, authoritative deduplication pass** — no other phase performs deduplication. **Phase 4b is also the sole authority for final severity assignment.**
 
 **Input sources**:
 1. Phase 4a Semgrep validation results (confirmed/rejected/needs_manual)
-2. Phase 4c Validation Agent `===VALIDATION_RESULT===` outputs
+2. Phase 4c Validation Agent `===VALIDATION_RESULT===` outputs (verdicts + four-step results — no severity changes)
 3. Main thread spot-check results
+4. Original Agent severity levels from Phase 2/2.5
 
 **Merge logic**:
 1. Collect all Validation Agent outputs
-2. Apply validation conclusions: keep confirmed, update severity for downgraded, remove rejected
+2. Apply validation verdicts: retain `confirmed` findings, flag `downgraded` findings for calibration adjustment, remove `rejected` findings
 3. Merge with Semgrep confirmed findings
-4. Apply the "cross-source deduplication rules" from [report-template.md](report-template.md)
-5. Execute severity recalibration from [validation-and-severity.md](validation-and-severity.md)
-6. Produce the final findings list
+4. Apply cross-source deduplication rules (see below)
+5. Execute severity recalibration on ALL remaining findings from [validation-and-severity.md](validation-and-severity.md), using: (a) original Agent severity, (b) Validation Agent verdict + four-step assessment results, (c) the scoring formula
+6. Produce the final deduplicated findings list with authoritative severity levels
+
+**Cross-Source Deduplication Rules**:
+
+Phase 4b is the single dedup pass. All deduplication criteria are applied here, after validation is complete.
+
+*Same Root Cause operational definition*:
+- **Same file + line range**: Findings in the same file within ±5 lines of each other = same root cause → merge, retain highest severity
+- **Same Source, multiple Sinks**: Same Source parameter affects ≥2 different Sinks = same root cause → merge, retain highest severity
+
+*Cross-source (Semgrep + Agent) deduplication*:
+- **Same Issue criteria**: Same file + overlapping line range + same CWE/vulnerability type = duplicate → merge, retain the entry with richer evidence (prefer Agent finding with data flow over Semgrep pattern match)
+- **Deduplication priority**: When merging duplicates, retain the finding with: (1) higher confidence, (2) more complete data flow, (3) higher severity. If equal, prefer the Agent finding over the Semgrep finding
+- **Non-duplicates**: Findings in the same file but targeting different vulnerability types (different CWE) are not duplicates even if line ranges overlap
 
 **Phase 4 substantive constraints (prevent step-skipping)**:
 - Must provide an independent validation conclusion for each Critical/High finding (cannot just say "confirmed")
@@ -235,14 +236,12 @@ Hard rules (standard/deep):
 - No skipping Phase 3 (Deep Dive)
 - No skipping Phase 4 (Validation)
 - If skipping is detected, trigger [HALT]
-
-Quick mode exception:
-- Quick mode sequence is Phase 1 → Phase 2 → Phase 5, legitimately skipping Phase 3/4
+- **Phase Skip Detector**: If main thread output lacks operation traces for Phase 2.5/3/4 (e.g., no "Phase 3 files read", no "Validation Agent launched", no `===MERGE_RESULT===`), trigger [HALT] with `phase_skip_violation`
+- **QUICK_EQUIVALENT tag**: When Phase 3/4 is skipped in standard/deep mode, the report header must include `⚠️ QUICK_EQUIVALENT: This report was generated without Deep Dive and Validation phases. Findings have not been independently verified.`
 
 Minimum phase transition gates:
 - `Phase 1 → Phase 2`: phase0_checklist meets mode requirements
 - `Phase 2 → Phase 2.5`: All Agents completed or timeout-handled, **and** Semgrep completed (completed/partial)
-- `Phase 2 → Phase 5` (quick only): Agents completed and coverage assessed
 - `Phase 2.5 → Phase 3`:
   * Coverage assessed
   * D1-D10 status produced
@@ -250,4 +249,4 @@ Minimum phase transition gates:
   * D1-D3 all ✅ or ⚠️ (❌ blocks entry to Phase 3) — Injection, Authentication, and Authorization are the three vulnerability categories that attackers exploit most frequently and with the highest impact. An audit that misses any of them provides a false sense of security.
   * Hotspots list produced
 - `Phase 3 → Phase 4`: Phase 3 marked completed and substantive constraints satisfied
-- `Phase 4 → Phase 5`: Phase 4 marked completed, and all Critical/High validated or annotated with "reason for non-reproducibility"
+- `Phase 4 → Phase 5`: Phase 4 marked completed, all Critical/High validated or annotated with "reason for non-reproducibility", and Phase 4b dedup executed (both 4a and 4c complete before 4b merge)

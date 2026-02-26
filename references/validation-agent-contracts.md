@@ -49,7 +49,6 @@ Rules:
 Input:
 - Findings list (including Phase 2 Agent original output + pre-validation status)
 - Phase 2.5 merged_findings context
-- Phase 4b severity calibration results
 
 Tasks:
 - Perform independent validation for each assigned finding
@@ -59,7 +58,8 @@ Tasks:
 Constraints:
 - max_turns: 15
 - Tool calls: Grep+Glob+Read ≤ base(20) + per_finding(8), capped at 60, Bash ≤ 5
-- Must not modify the finding's classification (CWE) or type; can only modify severity and confidence
+- Must not modify the finding's classification (CWE) or type
+- **Validation Agents do not assign or modify severity levels.** Severity is determined solely by Phase 4b calibration. Validation Agents output a verdict (`confirmed | downgraded | rejected`) and four-step assessment results, which Phase 4b uses as input to its scoring formula.
 - Each Critical/High must reference specific code lines (file:line)
 
 **Cross-validation principle** — having a different Agent validate findings catches both false positives (the original Agent's confirmation bias) and false negatives (things the original Agent overlooked in the same code area):
@@ -80,13 +80,13 @@ round: {n}
 validated_count: {n}
 source_agents: {list of validated Phase 2 Agents}
 
-[V-FNNN] confirmed | {original severity} → {validated severity}
+[V-FNNN] confirmed
   original: {source_agent_id} [FNNN]
   verification: 1:{result} 2:{result} 3:{result} 4:{result}
   evidence_file: {file}:{line}
   notes: {validation notes}
 
-[V-FNNN] downgraded | {original severity} → {validated severity}
+[V-FNNN] downgraded
   original: {source_agent_id} [FNNN]
   verification: 1:{result} 2:{result} 3:{result} 4:{result}
   reason: {downgrade reason + code evidence}
@@ -99,5 +99,7 @@ source_agents: {list of validated Phase 2 Agents}
 
 ===VALIDATION_RESULT_END===
 ```
+
+> **Note**: Validation Agents output only a verdict (`confirmed`, `downgraded`, or `rejected`) — not a new severity level. The four-step verification results are passed to Phase 4b, which applies the scoring formula to determine final severity. `downgraded` means the validation found issues (e.g., a step failed) that should reduce confidence; the actual severity recalculation happens in Phase 4b.
 
 **Degradation path**: When a Validation Agent fails or is truncated, fall back to main thread validation without blocking the flow.
