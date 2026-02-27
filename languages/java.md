@@ -150,7 +150,7 @@ balance\s*>=|new HashMap\(|new ArrayList\(
 
 ---
 
-## PHP Specific Dangerous Patterns (Java Comparison)
+## Cross-Framework Dangerous Pattern Comparison
 
 | Java Pattern | Description |
 |-------------|-------------|
