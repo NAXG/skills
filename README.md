@@ -155,6 +155,28 @@ code-audit/
 
 MIT
 
+## Limitations
+
+### Knowledge Cutoff
+
+This skill relies on LLM analysis. Current models have knowledge cutoff around **June 2025**.
+
+- **Supply Chain (D10)** coverage may be incomplete for CVEs published after this date
+- Recommendation: Use external tools alongside this audit:
+  - `semgrep` — SAST baseline scanning
+  - `osv-scanner` — Dependency vulnerability detection
+
+### Computational Constraints
+
+LLM-based analysis is bounded by context window and inference budget. For large codebases, coverage may be incomplete — certain files or data flows could be missed. Treat results as a supplement to, not a replacement for, comprehensive manual review.
+
+### Tool Integration
+
+This skill focuses on **Source-to-Sink data flow tracing**. External scanners complement but do not replace manual analysis for:
+- Business logic vulnerabilities
+- Complex authentication/authorization flaws
+- Multi-step attack chains
+
 ## Disclaimer
 
 This skill is intended for **authorized security testing** only. Users must have legal authorization to audit the target code and comply with applicable laws. Unauthorized security testing of systems you do not own may be illegal.
