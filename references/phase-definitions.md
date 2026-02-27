@@ -41,8 +41,8 @@ Examples:
 
 ## Phase 2: Hunt (Agent Scanning)
 
-- Launch business Agents (D1-D10 dimension scanning) and Semgrep baseline scan **in parallel**
-- All Agents must complete or be marked as timed out, **and** Semgrep must complete (completed/partial), before proceeding to Phase 2.5
+- Launch business Agents (D1-D10 dimension scanning) and **`agent-semgrep-scan`** (dedicated Semgrep Agent) **in parallel**
+- All Agents must complete or be marked as timed out, **and** `agent-semgrep-scan` must complete (completed/partial), before proceeding to Phase 2.5
 - `standard`: 1-2 rounds, balance between coverage and depth
 - `deep`: 2-3 rounds, strictly follow the [Deep Mode Extensions](multi-round-protocol.md#deep-mode-extensions)
 

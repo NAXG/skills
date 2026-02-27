@@ -138,50 +138,27 @@ After [PLAN_ACK], the main thread internally validates the following conditions;
 ```text
 [PLAN_ACK] confirmed
     ↓
-Launch Phase 2 Agents + Semgrep baseline scan (parallel)
+Launch Phase 2 Agents + agent-semgrep-scan (all parallel)
     ↓
-Agents and Semgrep execute concurrently
+Business Agents and agent-semgrep-scan execute concurrently
     ↓
-All Agents completed + Semgrep completed → Phase 2.5
+All Agents completed + agent-semgrep-scan completed → Phase 2.5
 ```
 
-> The Semgrep baseline scan launches **in parallel** with Phase 2 business Agents. Semgrep is **mandatory** and must complete successfully (completed or partial).
+> The Semgrep baseline scan is executed by a **dedicated `agent-semgrep-scan`**, launched **in parallel** with Phase 2 business Agents. This keeps the main thread free during the scan. Semgrep is **mandatory** and must complete successfully (completed or partial).
 
-**Semgrep Baseline Command**:
+**agent-semgrep-scan responsibilities** (see [Agent Contract § agent-semgrep-scan](agent-contract.md#agent-semgrep-scan)):
 
-```bash
-semgrep scan --config auto --json --output semgrep-baseline.json
-```
+1. Run the semgrep baseline scan
+2. Parse the output using the script
+3. Return `semgrep_status` and the path to `semgrep-findings.ison`
 
-**Parse Command** (raw output is too large, script parsing required):
-
-```bash
-python3 scripts/parse_semgrep_baseline.py semgrep-baseline.json \
-  --min-severity WARNING \
-  --exclude-third-party \
-  --format ison \
-  --output semgrep-findings.ison
-```
-
-Script location: `parse_semgrep_baseline.py` is in the `scripts/` directory of this skill.
-
-**Key parse parameters**:
-
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `--min-severity {INFO\|WARNING\|ERROR}` | `INFO` | Minimum severity filter |
-| `--exclude-third-party` | `false` | Exclude vendor/third-party directories and minified files |
-| `--format {text\|ison}` | `text` | Output format. `ison` for Phase 4a consumption (token-efficient tabular format) |
-| `--output <path>` | `-` (stdout) | Output file path |
-| `--include-path-regex <regex>` | empty | Path whitelist filter (repeatable) |
-| `--exclude-path-regex <regex>` | empty | Path blacklist filter (repeatable) |
-
-**Semgrep availability check** (mandatory):
+**Semgrep availability check** (mandatory, performed by main thread before [PLAN_ACK]):
 
 1. Check availability: `which semgrep` or `semgrep --version`
 2. If unavailable: trigger [HALT] — prompt user to install semgrep before continuing. Do not proceed to Phase 2
-3. If execution errors but has partial output: attempt to parse existing output, set `semgrep_status=partial` (acceptable, audit continues)
-4. If execution fails with no output: retry once. If still failing, trigger [HALT] — prompt user to fix semgrep installation
+3. Agent execution errors but has partial output: attempt to parse existing output, set `semgrep_status=partial` (acceptable, audit continues)
+4. Agent execution fails with no output: retry once. If still failing, trigger [HALT] — prompt user to fix semgrep installation
 
 **Accepted `semgrep_status` values by mode**:
 

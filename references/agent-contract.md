@@ -12,7 +12,8 @@
 - [Language/Framework Module Preloading](#languageframework-module-preloading-mandatory)
 - [R2 Additional Constraints](#r2-additional-constraints)
 - [Output Template](#mandatory-output-template--non-conforming-output-will-be-treated-as-truncated)
-- [Truncation Handling](#truncation-handling)
+ [Truncation Handling](#truncation-handling)
+ [agent-semgrep-scan](#agent-semgrep-scan)
 
 ## Contract Text (Injected into Every Agent)
 
@@ -321,3 +322,71 @@ Constraints:
 - Findings in a truncated state must not be directly elevated to Critical/High
 - Must not claim "full coverage" for that dimension until recovery is complete
 - For detailed recovery process, see [Agent Output Truncation Recovery](agent-output-recovery.md)
+
+---
+
+## agent-semgrep-scan
+
+**Execution phase**: Phase 2 (launched in parallel with business Agents)
+
+**Purpose**: Execute the Semgrep baseline scan and parse the output, freeing the main thread from blocking on scan execution.
+
+**max_turns**: 10
+
+**Tool call limits**: Bash ≤ 5 calls, Read ≤ 3 calls (for script verification only)
+
+### Tasks
+
+1. Run the Semgrep baseline scan:
+   ```bash
+   semgrep scan --config auto --json --output semgrep-baseline.json
+   ```
+2. Parse the output using the script:
+   ```bash
+   python3 {skill_scripts_path}/parse_semgrep_baseline.py semgrep-baseline.json \
+     --min-severity WARNING \
+     --exclude-third-party \
+     --format ison \
+     --output semgrep-findings.ison
+   ```
+   (`{skill_scripts_path}` is the `scripts/` directory of the code-audit skill, provided by the main thread at launch)
+3. Return structured output (see template below)
+
+**Key parse parameters**:
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--min-severity {INFO\|WARNING\|ERROR}` | `INFO` | Minimum severity filter |
+| `--exclude-third-party` | `false` | Exclude vendor/third-party directories and minified files |
+| `--format {text\|ison}` | `text` | Output format. `ison` for Phase 4a consumption (token-efficient tabular format) |
+| `--output <path>` | `-` (stdout) | Output file path |
+| `--include-path-regex <regex>` | empty | Path whitelist filter (repeatable) |
+| `--exclude-path-regex <regex>` | empty | Path blacklist filter (repeatable) |
+
+### Error Handling
+
+| Situation | Action |
+|-----------|--------|
+| Scan exits with error but `semgrep-baseline.json` exists | Proceed to parse step, set `semgrep_status=partial` |
+| Parse step fails | Retry once with `--min-severity ERROR` (less strict); if still failing, set `semgrep_status=failed` |
+| `semgrep-baseline.json` is absent / empty | Set `semgrep_status=failed`, report error details |
+
+### Output Template
+
+```text
+===SEMGREP_SCAN_RESULT===
+agent_id: agent-semgrep-scan
+semgrep_status: {completed|partial|failed}
+findings_file: {path to semgrep-findings.ison, or N/A if failed}
+raw_findings_count: {total findings before parsing, or N/A}
+parsed_findings_count: {findings after parsing filters, or N/A}
+error_details: {error message if failed/partial, else none}
+===SEMGREP_SCAN_RESULT_END===
+```
+
+### Rules
+
+- Must not modify any source files in the target codebase
+- Must not run Semgrep with `--autofix`
+- The main thread uses `semgrep_status` from this output to gate Phase 2 → Phase 2.5 transition
+- `semgrep_status=failed` triggers [HALT] in the main thread
